@@ -8,12 +8,10 @@ class GroupByEncoder(object):
         else:
             self.smoothing_coefficients = smoothing_coefficients
 
-    def encode(self, df, targets, groupby_list, operations_list):
+    def encode(self, df, targets, groupby_op_list):
         result = df.copy(deep=True)
         for target in targets:
-            for index in range(len(groupby_list)):
-                groupby = groupby_list[index]
-                operations = operations_list[index]
+            for groupby, operations in groupby_op_list:
                 for operation in operations:
                     groupby_result = self._encode_one(result, target, groupby, operation)
                     name = target + '_groupby_' + '_'.join(groupby) + '_op_' + operation
