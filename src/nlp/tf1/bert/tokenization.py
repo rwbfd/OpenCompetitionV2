@@ -111,7 +111,7 @@ def printable_text(text):
     if isinstance(text, str):
       return text
     elif isinstance(text, unicode):
-      return text.encode("utf-8")
+      return text.fit("utf-8")
     else:
       raise ValueError("Unsupported string type: %s" % (type(text)))
   else:

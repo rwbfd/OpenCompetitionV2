@@ -1,5 +1,5 @@
 # coding = 'utf-8'
-from ..general.data_util import split_df
+from src.general.data_util import split_df
 import pandas as pd
 
 
@@ -10,18 +10,18 @@ class TargetMeanEncoder(object):
         else:
             self.smoothing_coefficients = smoothing_coefficients
 
-    def encode(self, df, ys, target_vars, n_splits=5):
-        splitted_df = split_df(df, n_splits=n_splits, shuffle=True)
+    def fit_and_transform_train(self, df_train, ys, target_vars, n_splits=5):
+        splitted_df = split_df(df_train, n_splits=n_splits, shuffle=True)
         result = list()
         for train_df, test_df in splitted_df:
             for y in ys:
                 for target_var in target_vars:
                     for smoothing_coefficient in self.smoothing_coefficients:
-                        test_df = self._encode_one(train_df, test_df, y, target_var, smoothing_coefficient)
+                        test_df = self._fit_one(train_df, test_df, y, target_var, smoothing_coefficient)
             result.append(test_df)
         return pd.concat(result)
 
-    def _encode_one(self, train_df, test_df, y, target_var, smoothing_coefficient):
+    def _fit_one(self, train_df, test_df, y, target_var, smoothing_coefficient):
         global_average = train_df[y].mean()
         local_average = train_df.groupby(target_var)[y].mean().to_frame().reset_index()
         name = "target_mean_" + y + "_" + target_var + "_lambda_" + str(smoothing_coefficient)

@@ -1,28 +1,34 @@
 # coding = 'utf-8'
+import pandas as pd
+import numpy as np
 
-class DiscreteEncoder:
+
+class DiscreteEncoder(object):
     def __init__(self):
-        pass
+        self.result_list = list()
 
-    def encode(self, df, targets, configurations):
-        result = df.copy(deep=True)
+    def fit(self, df, targets, configurations):
+        self.result_list = list()
         for target in targets:
             for method, nbins in configurations:
-                result = self._encode_one(result, target, method, nbins)
-        return result
+                self._fit_one(df, target, method, nbins)
 
-    def _encode_one(self, df, target, method, nbins):
-        result = df
+    def _fit_one(self, df, target, method, nbins):
         if method == 'uniform':
             intervals = self._get_uniform_intervals(df, target, nbins)
             name = target + "_uniform_" + str(nbins)
-            result[name] = result[target].map(lambda x: get_interval(x, intervals))
+            self.result_list.append((target, name, intervals))
         elif method == 'quantile':
             intervals = self._get_quantile_intervals(df, target, nbins)
             name = target + "_quantile_" + str(nbins)
-            result[name] = result[target].map(lambda x: get_interval(x, intervals))
+            self.result_list.append((target, name, intervals))
         else:
             raise Exception("Not Implemented Yet")
+
+    def transform(self, df):
+        result = df.copy(deep=True)
+        for target, name, intervals in self.result_list:
+            result[target] = result[name].map(lambda x: get_interval(x, intervals))
         return result
 
     def _get_uniform_intervals(self, df, target, nbins):
@@ -40,6 +46,9 @@ class DiscreteEncoder:
 def get_interval(x, sorted_intervals):
     interval = 0
     found = False
+
+    if pd.isnan(x):
+        return np.nan
     while not found and interval < len(sorted_intervals) - 1:
         if sorted_intervals[interval] <= x <= sorted_intervals[interval + 1]:
             found = True
