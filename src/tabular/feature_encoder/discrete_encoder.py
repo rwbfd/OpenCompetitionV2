@@ -28,7 +28,7 @@ class DiscreteEncoder(object):
     def transform(self, df):
         result = df.copy(deep=True)
         for target, name, intervals in self.result_list:
-            result[target] = result[name].map(lambda x: get_interval(x, intervals))
+            result[name] = result[target].map(lambda x: get_interval(x, intervals))
         return result
 
     def _get_uniform_intervals(self, df, target, nbins):
@@ -47,7 +47,9 @@ def get_interval(x, sorted_intervals):
     interval = 0
     found = False
 
-    if pd.isnan(x):
+    if pd.isnull(x):
+        return np.nan
+    if x < sorted_intervals[0] or x > sorted_intervals[-1]:
         return np.nan
     while not found and interval < len(sorted_intervals) - 1:
         if sorted_intervals[interval] <= x <= sorted_intervals[interval + 1]:
@@ -57,16 +59,16 @@ def get_interval(x, sorted_intervals):
             interval += 1
 
 
+
 def get_uniform_interval(minimum, maximum, nbins):
     result = [minimum]
     step_size = (float(maximum - minimum)) / nbins
     for index in range(nbins - 1):
-        result.append(step_size * (index + 1))
+        result.append(minimum + step_size * (index + 1))
     result.append(maximum)
     return result
 
 
 def get_quantile_interval(data, nbins):
     quantiles = get_uniform_interval(0, 1, nbins)
-    print(quantiles)
     return list(data.quantile(quantiles))
