@@ -19,6 +19,7 @@ class GroupbyEncoder(object):
         result = df.copy(deep=True)
         for groupby, groupby_result in self.groupby_result_list:
             result = result.merge(groupby_result, on=groupby, how='left')
+        return result
 
     def _fit_one(self, df, target, groupby_vars, operation):
         result = df.groupby(groupby_vars, as_index=False).agg({target: operation})
