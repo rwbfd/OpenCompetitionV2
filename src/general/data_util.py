@@ -18,3 +18,16 @@ def split_df(df, n_splits, shuffle=True):
         result.append((df_copy.iloc[train_index], df_copy.iloc[test_index]))
 
     return result
+
+
+def find_continuous_discrete_variables(df):
+    columns = df.columns
+    continuous_vars = [x for x in columns if x.startwith('continuous_')]
+    discrete_vars = [x for x in columns if x.startwith('discrete_')]
+    other_vars = list()
+    for column in columns:
+        if column not in continuous_vars and column not in discrete_vars:
+            other_vars.append(column)
+    return {'continuous': continuous_vars,
+            'discrete': discrete_vars,
+            'other': other_vars}
