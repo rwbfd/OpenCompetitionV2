@@ -1,4 +1,6 @@
 .idea/
 examples/
 test/
+dist/
+open_competition.egg-info/
 

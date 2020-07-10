@@ -1,5 +1,5 @@
 # coding = 'utf-8'
-from src.general.data_util import split_df
+from open_competition.general.data_util import split_df
 import pandas as pd
 
 
