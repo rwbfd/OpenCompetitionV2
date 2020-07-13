@@ -20,10 +20,10 @@ def split_df(df, n_splits, shuffle=True):
     return result
 
 
-def find_continuous_discrete_variables(df):
+def get_var_type(df):
     columns = df.columns
-    continuous_vars = [x for x in columns if x.startwith('continuous_')]
-    discrete_vars = [x for x in columns if x.startwith('discrete_')]
+    continuous_vars = [x for x in columns if x.startswith('continuous_')]
+    discrete_vars = [x for x in columns if x.startswith('discrete_')]
     other_vars = list()
     for column in columns:
         if column not in continuous_vars and column not in discrete_vars:
@@ -31,3 +31,8 @@ def find_continuous_discrete_variables(df):
     return {'continuous': continuous_vars,
             'discrete': discrete_vars,
             'other': other_vars}
+
+
+def get_var_end_with(df, ends):
+    columns = df.columns
+    return [x for x in columns if x.endswith(ends)]

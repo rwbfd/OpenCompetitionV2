@@ -7,4 +7,5 @@ This is a to-do list for different part of algorithms.
 
 ## Tabular
 1. Change naming methods.
-2. Discrete methods should handle cases when unique values are too small.
+2. Discrete methods should handle cases when unique values are too sma self.problem_result_dict
+3. 

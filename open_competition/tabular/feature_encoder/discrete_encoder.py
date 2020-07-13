@@ -1,7 +1,7 @@
 # coding = 'utf-8'
 import pandas as pd
 import numpy as np
-from ...general import data_util, rename_util, string_util
+from ...general.string_util import remove_continuous_discrete_prefix
 
 
 class DiscreteEncoder(object):
@@ -17,12 +17,14 @@ class DiscreteEncoder(object):
     def _fit_one(self, df, target, method, nbins):
         if method == 'uniform':
             intervals = self._get_uniform_intervals(df, target, nbins)
-            name = string_util.remove_continuous_discrete_prefix(target) + "_nbins_" + str(nbins) + "_uniform_dis_encoder"
+            name = 'discrete_' + remove_continuous_discrete_prefix(target) + "_nbins_" + str(
+                nbins) + "_uniform_dis_encoder"
 
             self.result_list.append((target, name, intervals))
         elif method == 'quantile':
             intervals = self._get_quantile_intervals(df, target, nbins)
-            name = string_util.remove_continuous_discrete_prefix(target) + "_nbins_" + str(nbins) + "_quantile_dis_encoder"
+            name = 'discrete_' + remove_continuous_discrete_prefix(target) + "_nbins_" + str(
+                nbins) + "_quantile_dis_encoder"
             self.result_list.append((target, name, intervals))
         else:
             raise Exception("Not Implemented Yet")
