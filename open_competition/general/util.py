@@ -4,7 +4,7 @@ import pandas as pd
 from collections import OrderedDict
 
 from sklearn.model_selection import KFold
-
+from sklearn.metrics import confusion_matrix, accuracy_score, recall_score, precision_score, f1_score, roc_auc_score
 
 def add_or_append_dict(input_dict, key, value):
     result_dict = copy.deepcopy(input_dict)
@@ -115,3 +115,20 @@ def get_var_type(df):
 def get_var_end_with(df, ends):
     columns = df.columns
     return [x for x in columns if x.endswith(ends)]
+
+
+def eval_classification(y_true, y_pred_class):
+    result = OrderedDict()
+    result['acc'] = accuracy_score(y_true, y_pred_class)
+    result['recall'] = recall_score(y_true, y_pred_class)
+    result['precision'] = precision_score(y_true, y_pred_class)
+    result['macro_f1'] = f1_score(y_true, y_pred_class, average='macro')
+    result['micro_f1'] = f1_score(y_true, y_pred_class, average='micro')
+    result['confusion_matrix'] = confusion_matrix(y_true, y_pred_class)
+    return result
+
+
+def eval_binary_classification(y_true, y_pred_class, y_pred_prob):
+    result = eval_classification(y_true, y_pred_class)
+    result['auc'] = roc_auc_score(y_true, y_pred_prob)
+    return result

@@ -17,9 +17,19 @@ class CategoryEncoder(object):
     def _fit_one(self, df, y, target, config):
         method, parameter = config[0], config[1]
         if method == 'woe':
-            self._fit_woe(df, y, target, config)
+            self._fit_woe(df, y, target)
+        if method == 'one-hot':
+            self._fit_one_hot(df, target)
 
-    def _fit_woe(self, df, y, target, config):
+    def _fit_one_hot(self, df, target):
+        one_hot_encoder = ce.OneHotEncoder()
+        target_copy = df[target].copy(deep=True)
+        target_copy = target_copy.map(to_str)
+        one_hot_encoder.fit(target_copy)
+        name = [x + "_one_hot" for x in one_hot_encoder.get_feature_names()] ## I assume that the variables start with discrete
+        self.result_list.append(('one-hot', name, target, one_hot_encoder))
+
+    def _fit_woe(self, df, y, target):
         woe_encoder = ce.woe.WOEEncoder(cols=target)
         woe_encoder.fit(df[target], df[y])
         name = 'continuous_' + remove_continuous_discrete_prefix(target) + "_woe"
@@ -33,6 +43,8 @@ class CategoryEncoder(object):
                     result_df[name] = encoder.transform(df[target], df[y])
                 else:
                     result_df[name] = encoder.transform(df[target])
+            if method == 'one-hot':
+                result_df[name] = encoder.transform(df[target].map(to_str))
         return result_df
 
 
@@ -162,3 +174,10 @@ def get_uniform_interval(minimum, maximum, nbins):
 def get_quantile_interval(data, nbins):
     quantiles = get_uniform_interval(0, 1, nbins)
     return list(data.quantile(quantiles))
+
+
+def to_str(x):
+    if pd.isnull(x):
+        return '#NA#'
+    else:
+        return str(x)
