@@ -5,7 +5,7 @@ import category_encoders as ce
 from ..general.util import remove_continuous_discrete_prefix, split_df
 
 
-class CategoryEncoder(object):
+class CategoryEncoder(object):  # TODO: For each of them, need to add possibility for multivariate classification
     def __init__(self):
         self.result_list = list()
 
@@ -37,7 +37,7 @@ class CategoryEncoder(object):
         ordinal_encoder.fit(df[target])
         name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_ordinal' for x in
                 ordinal_encoder.get_feature_names()]
-        self.result_list.append(('ordinal', name, target, ordinal_encoder)
+        self.result_list.append(('ordinal', name, target, ordinal_encoder))
 
     def _fit_target(self, df, y, target, parameter):
         smoothing = parameter['smoothing']
@@ -56,7 +56,7 @@ class CategoryEncoder(object):
                 one_hot_encoder.get_feature_names()]  ## I assume that the variables start with discrete
         self.result_list.append(('one-hot', name, target, one_hot_encoder))
 
-    def _fit_woe(self, df, y, target):
+    def _fit_woe(self, df, y, target): ##
         woe_encoder = ce.woe.WOEEncoder(cols=target)
         woe_encoder.fit(df[target], df[y])
         name = 'continuous_' + remove_continuous_discrete_prefix(target) + "_woe"
@@ -122,6 +122,22 @@ class DiscreteEncoder(object):
 
     def _get_quantile_intervals(self, df, target, nbins):
         return get_quantile_interval(df[target], nbins)
+
+
+class BoostTreeEncoder:
+    def __init__(self):
+        self.result_list = list()
+
+    def fit(self, df, y, targets, config):
+        for method, parameter in config:
+            if method == 'xgboost':
+                self._fit_xgboost(df, y, targets)
+
+    def transform(self, df, targets):
+        pass
+
+    def _fit_xgboost(self, df, y, target):
+        pass
 
 
 class GroupbyEncoder(object):
