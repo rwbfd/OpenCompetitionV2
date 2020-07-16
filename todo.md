@@ -10,3 +10,6 @@ This is a to-do list for different part of algorithms.
 4. Add __repr__ methods for encoder methods. 
 5. Variable selector should be rewritten to include discretization process.
 6. Pass more arguments to encoders.
+7. GroupBy operations must contain more op's
+8. Want to add an option to optimize
+9. Change all the results to the case which can handle multiple classes

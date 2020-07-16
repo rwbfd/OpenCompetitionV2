@@ -20,13 +20,40 @@ class CategoryEncoder(object):
             self._fit_woe(df, y, target)
         if method == 'one-hot':
             self._fit_one_hot(df, target)
+        if method == 'ordinal':
+            self._fit_ordinal(df, target)
+        if method == 'hash':
+            self._fit_hash(df, target)
+
+    def _fit_hash(self, df, target):
+        hash_encoder = ce.HashingEncoder()
+        hash_encoder.fit(df[target])
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_hash' for x in
+                hash_encoder.get_feature_names()]
+        self.result_list.append(('hash', name, target, hash_encoder))
+
+    def _fit_ordinal(self, df, target):
+        ordinal_encoder = ce.OrdinalEncoder()
+        ordinal_encoder.fit(df[target])
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_ordinal' for x in
+                ordinal_encoder.get_feature_names()]
+        self.result_list.append(('ordinal', name, target, ordinal_encoder)
+
+    def _fit_target(self, df, y, target, parameter):
+        smoothing = parameter['smoothing']
+        target_encoder = ce.TargetEncoder(smoothing=smoothing)
+        target_encoder.fit(df[target], df[y])
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_smooth_' + str(smoothing) + '_target' for x in
+                target_encoder.get_feature_names()]
+        self.result_list.append(('target', name, target, target_encoder))
 
     def _fit_one_hot(self, df, target):
         one_hot_encoder = ce.OneHotEncoder()
         target_copy = df[target].copy(deep=True)
         target_copy = target_copy.map(to_str)
         one_hot_encoder.fit(target_copy)
-        name = [x + "_one_hot" for x in one_hot_encoder.get_feature_names()] ## I assume that the variables start with discrete
+        name = [x + "_one_hot" for x in
+                one_hot_encoder.get_feature_names()]  ## I assume that the variables start with discrete
         self.result_list.append(('one-hot', name, target, one_hot_encoder))
 
     def _fit_woe(self, df, y, target):
@@ -35,7 +62,7 @@ class CategoryEncoder(object):
         name = 'continuous_' + remove_continuous_discrete_prefix(target) + "_woe"
         self.result_list.append(('woe', name, target, woe_encoder))
 
-    def transform(self, df, y=None):
+    def transform(self, df, y=None):  ### TODO: This can be optimized
         result_df = df.copy(deep=True)
         for method, name, target, encoder in self.result_list:
             if method == 'woe':
@@ -45,6 +72,12 @@ class CategoryEncoder(object):
                     result_df[name] = encoder.transform(df[target])
             if method == 'one-hot':
                 result_df[name] = encoder.transform(df[target].map(to_str))
+            if method == 'target':
+                result_df[name] = encoder.transform(df[target])
+            if method == 'hash':
+                result_df[name] = encoder.transform(df[target])
+            if method == 'ordinal':
+                result_df[name] = encoder.transform(df[target])
         return result_df
 
 
@@ -146,7 +179,7 @@ class TargetMeanEncoder(object):
         return test_df
 
 
-def get_interval(x, sorted_intervals):
+def get_interval(x, sorted_intervals):  ### Needs to be rewritten to remove found and duplicated code
     interval = 0
     found = False
 
@@ -156,7 +189,6 @@ def get_interval(x, sorted_intervals):
         return np.nan
     while not found and interval < len(sorted_intervals) - 1:
         if sorted_intervals[interval] <= x <= sorted_intervals[interval + 1]:
-            found = True
             return "i_" + str(interval)
         else:
             interval += 1
