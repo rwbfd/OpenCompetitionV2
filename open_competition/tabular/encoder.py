@@ -3,6 +3,12 @@ import pandas as pd
 import numpy as np
 import category_encoders as ce
 from ..general.util import remove_continuous_discrete_prefix, split_df
+import copy
+import multiprocessing
+
+cpu_count = multiprocessing.cpu_count()
+
+import xgboost as xgb
 
 
 class CategoryEncoder(object):  # TODO: For each of them, need to add possibility for multivariate classification
@@ -56,7 +62,7 @@ class CategoryEncoder(object):  # TODO: For each of them, need to add possibilit
                 one_hot_encoder.get_feature_names()]  ## I assume that the variables start with discrete
         self.result_list.append(('one-hot', name, target, one_hot_encoder))
 
-    def _fit_woe(self, df, y, target): ##
+    def _fit_woe(self, df, y, target):  ##
         woe_encoder = ce.woe.WOEEncoder(cols=target)
         woe_encoder.fit(df[target], df[y])
         name = 'continuous_' + remove_continuous_discrete_prefix(target) + "_woe"
@@ -124,20 +130,38 @@ class DiscreteEncoder(object):
         return get_quantile_interval(df[target], nbins)
 
 
-class BoostTreeEncoder:
-    def __init__(self):
+class BoostTreeEncoder:  ## TODO: Please add LightGBM and CatBoost
+    def __init__(self, nthread=None):
         self.result_list = list()
+        if nthread:
+            self.nthread = cpu_count
+        else:
+            self.nthread = nthread
 
-    def fit(self, df, y, targets, config):
+    def fit(self, df, y, targets_list, config):
         for method, parameter in config:
             if method == 'xgboost':
-                self._fit_xgboost(df, y, targets)
+                self._fit_xgboost(df, y, targets_list, parameter)
 
-    def transform(self, df, targets):
+    def transform(self, df, targets):  ## TODO: It doesn't seem we need target here, maybe we don't need others as well?
         pass
 
-    def _fit_xgboost(self, df, y, target):
-        pass
+    def _fit_xgboost(self, df, y, targets_list, parameter):
+        for targets in targets_list:
+
+            parameter_copy = copy.deepcopy(parameter)
+            if 'nthread' not in parameter.keys():
+                parameter_copy['nthread'] = self.nthread
+            if 'objective' not in parameter.keys():
+                parameter_copy['objective'] = "multi:softmax"
+            num_rounds = parameter['num_rounds']
+            pos = parameter['pos']
+            dtrain = xgb.DMatrix(df[targets], label=df[y])
+            model = xgb.train(parameter_copy, dtrain, num_rounds)
+            name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
+            name = "discrete_" + "_".join(name_remove)
+
+            self.result_list.append(('xgb', name, targets, model, pos))
 
 
 class GroupbyEncoder(object):
@@ -160,7 +184,7 @@ class GroupbyEncoder(object):
             result = result.merge(groupby_result, on=groupby, how='left')
         return result
 
-    def _fit_one(self, df, target, groupby_vars, operation):
+    def _fit_one(self, df, target, groupby_vars, operation):  # TODO: Add other aggregation options, such as kurtosis
         result = df.groupby(groupby_vars, as_index=False).agg({target: operation})
         return result
 
@@ -193,6 +217,33 @@ class TargetMeanEncoder(object):
             lambda x: global_average if pd.isnull(x) else smoothing_coefficient * x + (
                     1 - smoothing_coefficient) * global_average)
         return test_df
+
+
+class UnaryContinuousVarEncoder:
+    def __init__(self):
+        self.result_list = list()
+
+    def fit(self, df, y, targets, config):
+        for target in targets:
+            for method, parameter in config:
+                if method == 'power':
+                    pass
+                if method == 'sin':
+                    pass
+                if method == 'cos':
+                    pass
+                if method == 'bc':
+                    pass
+                if method == 'jy':
+                    pass
+
+
+class BinaryContinuousVarEncoder:
+    def __init__(self):
+        self.result_list = list()
+
+    def fit(self, df, y, targets_pairs, config):
+        pass
 
 
 def get_interval(x, sorted_intervals):  ### Needs to be rewritten to remove found and duplicated code
