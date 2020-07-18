@@ -4,11 +4,16 @@ import numpy as np
 import category_encoders as ce
 from ..general.util import remove_continuous_discrete_prefix, split_df
 import copy
+
 import multiprocessing
 
-cpu_count = multiprocessing.cpu_count()
-
+from sklearn.neighbors import LocalOutlierFactor
+from sklearn.ensemble import IsolationForest
 import xgboost as xgb
+import lightgbm as lgb
+import catboost as cat
+
+cpu_count = multiprocessing.cpu_count()
 
 
 class CategoryEncoder(object):  # TODO: For each of them, need to add possibility for multivariate classification
@@ -130,7 +135,7 @@ class DiscreteEncoder(object):
         return get_quantile_interval(df[target], nbins)
 
 
-class BoostTreeEncoder:  ## TODO: Please add LightGBM and CatBoost
+class BoostTreeEncoder:  ## TODO: Please add LightGBM and CatBoost and  isolation fores
     def __init__(self, nthread=None):
         self.result_list = list()
         if nthread:
@@ -142,18 +147,26 @@ class BoostTreeEncoder:  ## TODO: Please add LightGBM and CatBoost
         for method, parameter in config:
             if method == 'xgboost':
                 self._fit_xgboost(df, y, targets_list, parameter)
+            if method == 'lightgbm':
+                self._fit_lightgbm(df, y, targets_list, parameter)
+            if method == 'catboost':
+                self._fit_catboost(df, y, targets_list, parameter)
 
-    def transform(self, df, targets):  ## TODO: It doesn't seem we need target here, maybe we don't need others as well?
-        pass
+    def transform(self, df):
+        result = df.copy(deep=True)
+        for method, name, targets, model, pos in self.result_list:
+            result[name + "_" + pos] = model.predict(df[targets])
+
+        return result
 
     def _fit_xgboost(self, df, y, targets_list, parameter):
         for targets in targets_list:
-
             parameter_copy = copy.deepcopy(parameter)
             if 'nthread' not in parameter.keys():
                 parameter_copy['nthread'] = self.nthread
             if 'objective' not in parameter.keys():
                 parameter_copy['objective'] = "multi:softmax"
+
             num_rounds = parameter['num_rounds']
             pos = parameter['pos']
             dtrain = xgb.DMatrix(df[targets], label=df[y])
@@ -162,6 +175,85 @@ class BoostTreeEncoder:  ## TODO: Please add LightGBM and CatBoost
             name = "discrete_" + "_".join(name_remove)
 
             self.result_list.append(('xgb', name, targets, model, pos))
+
+    def _fit_lightgbm(self, df, y, targets_list, parameter):
+        for targets in targets_list:
+            parameter_copy = copy.deepcopy(parameter)
+            if 'num_threads' not in parameter.keys():
+                parameter_copy['num_threads'] = self.nthread
+            if 'objective' not in parameter.keys():
+                parameter_copy['objective'] = "multiclass"
+
+            num_rounds = parameter['num_threads']
+            pos = parameter['pos']
+            dtrain = lgb.Dataset(df[targets], label=df[y])
+            model = lgb.train(parameter_copy, dtrain, num_rounds)
+
+            name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
+            name = "discrete_" + "_".join(name_remove)
+            self.result_list.append(('lgb', name, targets, model, pos))
+
+    def _fit_catboost(self, df, y, targets_list, parameter):
+        for targets in targets_list:
+            parameter_copy = copy.deepcopy(parameter)
+            if 'num_boost_round' not in parameter.keys():
+                parameter_copy['num_boost_round'] = self.nthread
+            if 'loss_function' not in parameter.keys():
+                parameter_copy['loss_function'] = "MultiClass"
+
+            pos = parameter['pos']
+            num_rounds = parameter['num_boost_round']
+            dtrain = cat.Pool(df[targets], label=df[y])
+            model = cat.train(params=parameter_copy, dtrain=dtrain, num_boost_round=num_rounds)
+
+            name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
+            name = "discrete_" + "_".join(name_remove)
+            self.result_list.append(('cat', name, targets, model, pos))
+
+
+class AnomalyScoreEncoder(object):
+    def __init__(self, nthread=None):
+        self.result_list = list()
+        if nthread:
+            self.nthread = cpu_count
+        else:
+            self.nthread = nthread
+
+    def fit(self, df, y, targets_list, config):
+        for method, parameter in config:
+            if method == 'IsolationForest':
+                self._fit_isolationForest(df, y, targets_list, parameter)
+            if method == 'LOF':
+                self._fit_LOF(df, y, targets_list, parameter)
+
+    def transform(self, df):
+        result = df.copy(deep=True)
+        for method, name, targets, model in self.result_list:
+            result[name + "_" + method] = model.predict(df[targets])
+
+        return result
+
+    def _fit_isolationForest(self, df, y, targets_list, parameter):
+        for targets in targets_list:
+            n_jobs = self.nthread
+
+            model = IsolationForest(n_jobs=n_jobs)
+            model.fit(X=df[targets])
+
+            name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
+            name = "discrete_" + "_".join(name_remove)
+            self.result_list.append(('IsolationForest', name, targets, model))
+
+    def _fit_LOF(self, df, y, targets_list, parameter):
+        for targets in targets_list:
+            n_jobs = self.nthread
+
+            model = LocalOutlierFactor(n_jobs=n_jobs)
+            model.fit(X=df[targets])
+
+            name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
+            name = "discrete_" + "_".join(name_remove)
+            self.result_list.append(("LOF", name, targets, model))
 
 
 class GroupbyEncoder(object):
