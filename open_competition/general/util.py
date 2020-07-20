@@ -6,6 +6,7 @@ from collections import OrderedDict
 from sklearn.model_selection import KFold
 from sklearn.metrics import confusion_matrix, accuracy_score, recall_score, precision_score, f1_score, roc_auc_score
 
+
 def add_or_append_dict(input_dict, key, value):
     result_dict = copy.deepcopy(input_dict)
     if key in result_dict.keys():
@@ -110,6 +111,16 @@ def get_var_type(df):
     return {'continuous': continuous_vars,
             'discrete': discrete_vars,
             'other': other_vars}
+
+
+def get_cont_var(df):
+    var_types = get_var_type(df)
+    return var_types['continuous']
+
+
+def get_dis_var(df):
+    var_types = get_var_type(df)
+    return var_types['discrete']
 
 
 def get_var_end_with(df, ends):
