@@ -113,6 +113,16 @@ def get_var_type(df):
             'other': other_vars}
 
 
+def get_cont_var(df):
+    var_types = get_var_type(df)
+    return var_types['continuous']
+
+
+def get_dis_var(df):
+    var_types = get_var_type(df)
+    return var_types['discrete']
+
+
 def get_var_end_with(df, ends):
     columns = df.columns
     return [x for x in columns if x.endswith(ends)]
