@@ -4,11 +4,16 @@ import numpy as np
 import category_encoders as ce
 from ..general.util import remove_continuous_discrete_prefix, split_df
 import copy
+
 import multiprocessing
 
-cpu_count = multiprocessing.cpu_count()
-
+from sklearn.neighbors import LocalOutlierFactor
+from sklearn.ensemble import IsolationForest
 import xgboost as xgb
+import lightgbm as lgb
+import catboost as cat
+
+cpu_count = multiprocessing.cpu_count()
 
 
 class CategoryEncoder(object):  # TODO: For each of them, need to add possibility for multivariate classification
@@ -130,7 +135,7 @@ class DiscreteEncoder(object):
         return get_quantile_interval(df[target], nbins)
 
 
-class BoostTreeEncoder:  ## TODO: Please add LightGBM and CatBoost
+class BoostTreeEncoder:  ## TODO: Please add LightGBM and CatBoost and  isolation fores
     def __init__(self, nthread=None):
         self.result_list = list()
         if nthread:
@@ -142,13 +147,13 @@ class BoostTreeEncoder:  ## TODO: Please add LightGBM and CatBoost
         for method, parameter in config:
             if method == 'xgboost':
                 self._fit_xgboost(df, y, targets_list, parameter)
-
-    def transform(self, df, targets):  ## TODO: It doesn't seem we need target here, maybe we don't need others as well?
-        pass
+            if method == 'lightgbm':
+                self._fit_lightgbm(df, y, targets_list, parameter)
+            # if method == 'catboost':
+            #     self._fit_catboost(df, y, targets_list, parameter)
 
     def _fit_xgboost(self, df, y, targets_list, parameter):
         for targets in targets_list:
-
             parameter_copy = copy.deepcopy(parameter)
             if 'nthread' not in parameter.keys():
                 parameter_copy['nthread'] = self.nthread
@@ -162,6 +167,128 @@ class BoostTreeEncoder:  ## TODO: Please add LightGBM and CatBoost
             name = "discrete_" + "_".join(name_remove)
 
             self.result_list.append(('xgb', name, targets, model, pos))
+
+    def _fit_lightgbm(self, df, y, targets_list, parameter):
+        for targets in targets_list:
+            parameter_copy = copy.deepcopy(parameter)
+            if 'num_threads' not in parameter.keys():
+                parameter_copy['num_threads'] = self.nthread
+            if 'objective' not in parameter.keys():
+                parameter_copy['objective'] = "multiclass"
+
+            num_rounds = parameter['num_threads']
+            pos = parameter['pos']
+            dtrain = lgb.Dataset(df[targets], label=df[y])
+            model = lgb.train(parameter_copy, dtrain, num_rounds)
+
+            name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
+            name = "discrete_" + "_".join(name_remove)
+            self.result_list.append(('lgb', name, targets, model, pos))
+
+    #
+    # def _fit_catboost(self, df, y, targets_list, parameter):
+    #     for targets in targets_list:
+    #         parameter_copy = copy.deepcopy(parameter)
+    #         if 'num_boost_round' not in parameter.keys():
+    #             parameter_copy['num_boost_round'] = self.nthread
+    #         if 'loss_function' not in parameter.keys():
+    #             parameter_copy['loss_function'] = "MultiClass"
+    #
+    #         pos = parameter['pos']
+    #         num_rounds = parameter['num_boost_round']
+    #         dtrain = cat.Pool(df[targets], label=df[y])
+    #         model = cat.train(params=parameter_copy, dtrain=dtrain, num_boost_round=num_rounds)
+    #
+    #         name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
+    #         name = "discrete_" + "_".join(name_remove)
+    #         self.result_list.append(('cat', name, targets, model, pos))
+
+    def transform(self, df):
+        result = df.copy(deep=True)
+        trans_results = [result]
+        for method, name, targets, model, pos in self.result_list:
+            if method == 'xgboost':
+                tree_infos: pd.DataFrame = model.trees_to_dataframe()
+            elif method == 'lightgbm':
+                tree_infos = tree_to_dataframe_for_lightgbm(model).get()
+            else:
+                raise Exception("Not Implemented Yet")
+
+            trans_results.append(self._boost_tansform(result[targets], method, name, pos, tree_infos))
+
+        return pd.concat(trans_results, axis=1)
+
+    @staticmethod
+    def _transform_byeval(df, feature_name, leaf_condition):
+        for key in leaf_condition.keys():
+            if eval(leaf_condition[key]):
+                df[feature_name] = key
+        return df
+
+    def _boost_tansform(self, df, method, name, pos, tree_infos):
+        tree_ids = tree_infos["Node"].drop_duplicates().tolist().sort()
+        for tree_id in tree_ids:
+            tree_info = tree_infos[tree_infos["Tree"] == tree_id][
+                ["Node", "Feature", "Split", "Yes", "No", "Missing"]].copy(deep=True)
+            tree_info["Yes"] = tree_info["Yes"].apply(lambda y: str(y).replace(str(tree_id) + "-", ""))
+            tree_info["No"] = tree_info["No"].apply(lambda y: str(y).replace(str(tree_id) + "-", ""))
+            tree_info["Missing"] = tree_info["Missing"].apply(lambda y: str(y).replace(str(tree_id) + "-", ""))
+            leaf_nodes = tree_info[tree_info["Feature"] == "Leaf"]["Node"].drop_duplicates().tolist()
+            encoder_dict = {}
+            for leaf_node in leaf_nodes:
+                encoder_dict[leaf_node] = get_booster_leaf_condition(leaf_node, [], tree_info)
+
+            df.fillna(None)
+
+            df.apply(self._transform_byeval,
+                     feature_name="_".join([name, method, "tree_" + tree_id, pos]), leaf_condition=encoder_dict)
+
+        return df
+
+
+class AnomalyScoreEncoder(object):
+    def __init__(self, nthread=None):
+        self.result_list = list()
+        if nthread:
+            self.nthread = cpu_count
+        else:
+            self.nthread = nthread
+
+    def fit(self, df, y, targets_list, config):
+        for method, parameter in config:
+            if method == 'IsolationForest':
+                self._fit_isolationForest(df, y, targets_list, parameter)
+            if method == 'LOF':
+                self._fit_LOF(df, y, targets_list, parameter)
+
+    def transform(self, df):
+        result = df.copy(deep=True)
+        for method, name, targets, model in self.result_list:
+            result[name + "_" + method] = model.predict(df[targets])
+
+        return result
+
+    def _fit_isolationForest(self, df, y, targets_list, parameter):
+        for targets in targets_list:
+            n_jobs = self.nthread
+
+            model = IsolationForest(n_jobs=n_jobs)
+            model.fit(X=df[targets])
+
+            name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
+            name = "discrete_" + "_".join(name_remove)
+            self.result_list.append(('IsolationForest', name, targets, model))
+
+    def _fit_LOF(self, df, y, targets_list, parameter):
+        for targets in targets_list:
+            n_jobs = self.nthread
+
+            model = LocalOutlierFactor(n_jobs=n_jobs)
+            model.fit(X=df[targets])
+
+            name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
+            name = "discrete_" + "_".join(name_remove)
+            self.result_list.append(("LOF", name, targets, model))
 
 
 class GroupbyEncoder(object):
@@ -280,3 +407,116 @@ def to_str(x):
         return '#NA#'
     else:
         return str(x)
+
+
+def get_booster_leaf_condition(leaf_node, conditions, tree_info: pd.DataFrame):
+    start_node_info = tree_info[tree_info["Node"] == leaf_node]
+    if start_node_info["Feature"].tolist()[0] == "Leaf":
+        conditions = []
+
+    if str(leaf_node) in tree_info["Yes"].drop_duplicates().tolist():
+        father_node_info = tree_info[tree_info["Yes"] == str(leaf_node)]
+        fathers_left = True
+    else:
+        father_node_info = tree_info[tree_info["No"] == str(leaf_node)]
+        fathers_left = False
+
+    father_node_id = father_node_info["Node"].tolist()[0]
+    split_value = father_node_info["Split"].tolist()[0]
+    split_feature = father_node_info["Feature"].tolist()[0]
+    if fathers_left:
+        add_condition = ["row['" + split_feature + "'] <= " + str(split_value)]
+        if father_node_info["Yes"].tolist()[0] == father_node_info["Missing"].tolist()[0]:
+            add_condition.append("isMissing(row['" + split_feature + "'])")
+
+    else:
+        add_condition = ["row['" + split_feature + "']) > " + str(split_value)]
+        if father_node_info["No"].tolist()[0] == father_node_info["Missing"].tolist()[0]:
+            add_condition.append("row['" + split_feature + "'] == None")
+
+    add_condition = "(" + " or ".join(add_condition) + ")"
+    conditions.append(add_condition)
+
+    if father_node_info["Node"].tolist()[0] == 0:
+        return " and ".join(conditions)
+    else:
+        return get_booster_leaf_condition(father_node_id, conditions, tree_info)
+
+
+class tree_to_dataframe_for_lightgbm(object):
+    def __init__(self, model):
+        self.json_model = model.dump_model()
+        self.features = self.json_model["feature_names"]
+
+    def get_root_nodes_count(self, tree, max_id):
+        tree_node_id = tree.get("split_index")
+        if tree_node_id:
+            if tree_node_id > max_id:
+                max_id = tree_node_id
+
+        if tree.get("left_child"):
+            left = self.get_root_nodes_count(tree.get("left_child"), max_id)
+            if left > max_id:
+                max_id = left
+        else:
+            left = []
+
+        if tree.get("right_child"):
+            right = self.get_root_nodes_count(tree.get("right_child"), max_id)
+            if right > max_id:
+                max_id = right
+        else:
+            right = []
+
+        if not left and not right:  # 如果root是叶子结点
+            max_id = max_id
+        return max_id
+
+    def get(self):
+        tree_dataframe = []
+
+        for tree in self.json_model["tree_info"]:
+            tree_id = tree["tree_index"]
+            tree = tree["tree_structure"]
+            root_nodes_count = self.get_root_nodes_count(tree, 0) + 1
+            tree_dataFrame = pd.DataFrame()
+            tree_df = self._lightGBM_trans(tree, tree_dataFrame, tree_id, root_nodes_count).sort_values(
+                "Node").reset_index(drop=True)
+            tree_df["Tree"] = tree_id
+            tree_dataframe.append(tree_df)
+
+        return pd.concat(tree_dataframe, axis=0)
+
+    def _lightGBM_trans(self, tree, tree_dataFrame, tree_id, root_nodes_count):
+        tree_node_id = tree.get("split_index")
+        threshold = tree.get("threshold")
+        default_left = tree.get("default_left")
+
+        if tree_node_id is not None:
+            data = {"Node": tree_node_id, "Feature": self.features[tree.get("split_index")], "Split": threshold}
+            yes_id = tree.get("left_child").get("split_index")
+            if yes_id is None:
+                yes_id = tree.get("left_child").get("leaf_index") + root_nodes_count
+            tree_dataFrame = self._lightGBM_trans(tree.get("left_child"), tree_dataFrame, tree_id, root_nodes_count)
+
+            no_id = tree.get("right_child").get("split_index")
+            if no_id is None:
+                no_id = tree.get("right_child").get("leaf_index") + root_nodes_count
+
+            tree_dataFrame = self._lightGBM_trans(tree.get("right_child"), tree_dataFrame, tree_id, root_nodes_count)
+
+            if default_left:
+                missing_id = yes_id
+            else:
+                missing_id = no_id
+            data["Yes"], data["No"], data["Missing"] = "_".join([tree_id, yes_id]), "_".join(
+                [tree_id, no_id]), "_".join([tree_id, missing_id])
+        else:
+            # print(tree)
+            # print(tree_node_id)
+            data = {"Node": root_nodes_count + tree.get("leaf_index"), "Feature": "Leaf", "Split": None, "Yes": None,
+                    "No": None, "Missing": None}
+
+        row = pd.DataFrame.from_dict(data, orient="index").T
+        tree_dataFrame = pd.concat([tree_dataFrame, row])
+        return tree_dataFrame
