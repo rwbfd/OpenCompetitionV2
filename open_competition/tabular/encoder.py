@@ -185,24 +185,6 @@ class BoostTreeEncoder:  ## TODO: Please add LightGBM and CatBoost and  isolatio
             name = "discrete_" + "_".join(name_remove)
             self.result_list.append(('lgb', name, targets, model, pos))
 
-    #
-    # def _fit_catboost(self, df, y, targets_list, parameter):
-    #     for targets in targets_list:
-    #         parameter_copy = copy.deepcopy(parameter)
-    #         if 'num_boost_round' not in parameter.keys():
-    #             parameter_copy['num_boost_round'] = self.nthread
-    #         if 'loss_function' not in parameter.keys():
-    #             parameter_copy['loss_function'] = "MultiClass"
-    #
-    #         pos = parameter['pos']
-    #         num_rounds = parameter['num_boost_round']
-    #         dtrain = cat.Pool(df[targets], label=df[y])
-    #         model = cat.train(params=parameter_copy, dtrain=dtrain, num_boost_round=num_rounds)
-    #
-    #         name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
-    #         name = "discrete_" + "_".join(name_remove)
-    #         self.result_list.append(('cat', name, targets, model, pos))
-
     def transform(self, df):
         result = df.copy(deep=True)
         trans_results = [result]
