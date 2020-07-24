@@ -24,6 +24,10 @@ class ModelFitter:
         raise NotImplementedError()
 
     def search(self):
+        """
+        
+        :return:
+        """
         self.current_parameter = deepcopy(self.default_dict)
 
         for search_stage in self.search_config:
