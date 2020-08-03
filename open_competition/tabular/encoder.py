@@ -360,45 +360,6 @@ class UnaryContinuousVarEncoder:
                 if method == 'sqrt':
                     self._fit_sqrt(df, y, target)
                     
-    def fit_two(self, df, y, target1, target2, config):
-        for method, parameter in config:
-            # when arity=2
-            if method == 'add':
-                self._fit_add(df, y, target1, target2)
-            if method == 'sub':
-                self._fit_sub(df, y, target1, target2)
-            if method == 'mul':
-                self._fit_mul(df, y, target1, target2)
-            if method == 'div':
-                self._fit_div(df, y, target1, target2)
-                
-    def _fit_add(self, df, target1, target2):
-        _add = lambda x, y: np.add(x,y)
-        add_encoder = df.apply(lambda row: _add(row[target1], row[target2]), axis=1)
-        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_add' for x in
-                add_encoder.get_feature_names()]
-        self.result_list.append(('add', name, target, add_encoder))
-        
-    def _fit_sub(self, df, target1, target2):
-        _sub = lambda x, y: np.subtract(x,y)
-        sub_encoder = df.apply(lambda row: _add(row[target1], row[target2]), axis=1)
-        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_sub' for x in
-                sub_encoder.get_feature_names()]
-        self.result_list.append(('sub', name, target, sub_encoder))
-        
-    def _fit_mul(self, df, target1, target2):
-        _mul = lambda x, y: np.multiply(x,y)
-        mul_encoder = df.apply(lambda row: _add(row[target1], row[target2]), axis=1)
-        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_mul' for x in
-                mul_encoder.get_feature_names()]
-        self.result_list.append(('mul', name, target, mul_encoder))
-    
-    def _fit_div(self, df, target1, target2):
-        _div = lambda x, y: np.divide(x,y)
-        div_encoder = df.apply(lambda row: _add(row[target1], row[target2]), axis=1)
-        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_div' for x in
-                div_encoder.get_feature_names()]
-        self.result_list.append(('div', name, target, div_encoder))
 
     def _fit_power(self, df, target, parameter):
         _power = lambda x: np.power(x, parameter)
@@ -471,17 +432,49 @@ class UnaryContinuousVarEncoder:
         self.result_list.append(('sqrt', name, target, sqrt_encoder))
     
     
-        
-        
-        
-
-
 class BinaryContinuousVarEncoder:
     def __init__(self):
         self.result_list = list()
 
     def fit(self, df, y, targets_pairs, config):
-        pass
+        for target1, target2 in targets_pairs:
+            for method, parameter in config:
+                if method == 'add':
+                    self._fit_add(df, y, target1, target2)
+                if method == 'sub':
+                    self._fit_sub(df, y, target1, target2)
+                if method == 'mul':
+                    self._fit_mul(df, y, target1, target2)
+                if method == 'div':
+                    self._fit_div(df, y, target1, target2)
+                    
+    def _fit_add(self, df, target1, target2):
+        _add = lambda x, y: np.add(x,y)
+        add_encoder = df.apply(lambda row: _add(row[target1], row[target2]), axis=1)
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_add' for x in
+                add_encoder.get_feature_names()]
+        self.result_list.append(('add', name, target, add_encoder))
+        
+    def _fit_sub(self, df, target1, target2):
+        _sub = lambda x, y: np.subtract(x,y)
+        sub_encoder = df.apply(lambda row: _add(row[target1], row[target2]), axis=1)
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_sub' for x in
+                sub_encoder.get_feature_names()]
+        self.result_list.append(('sub', name, target, sub_encoder))
+        
+    def _fit_mul(self, df, target1, target2):
+        _mul = lambda x, y: np.multiply(x,y)
+        mul_encoder = df.apply(lambda row: _add(row[target1], row[target2]), axis=1)
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_mul' for x in
+                mul_encoder.get_feature_names()]
+        self.result_list.append(('mul', name, target, mul_encoder))
+    
+    def _fit_div(self, df, target1, target2):
+        _div = lambda x, y: np.divide(x,y)
+        div_encoder = df.apply(lambda row: _add(row[target1], row[target2]), axis=1)
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_div' for x in
+                div_encoder.get_feature_names()]
+        self.result_list.append(('div', name, target, div_encoder))
 
 
 def get_interval(x, sorted_intervals):  ### Needs to be rewritten to remove found and duplicated code
