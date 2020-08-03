@@ -335,16 +335,97 @@ class UnaryContinuousVarEncoder:
     def fit(self, df, y, targets, config):
         for target in targets:
             for method, parameter in config:
+                # when arity=1
+                # continuous func
                 if method == 'power':
-                    pass
+                    self._fit_power(df, y, target, parameter)
                 if method == 'sin':
-                    pass
+                    self._fit_sin(df, y, target)
                 if method == 'cos':
-                    pass
-                if method == 'bc':
-                    pass
-                if method == 'jy':
-                    pass
+                    self._fit_cos(df, y, target)
+                if method == 'tan':
+                    self._fit_tan(df, y, target)
+                if method == 'log':
+                    self._fit_log(df, y, target)
+                if method == 'exp':
+                    self._fit_exp(df, y, target)
+                    
+                # uncontinuous func 
+                if method == 'abs':
+                    self._fit_abs(df, y, target)
+                if method == 'neg':
+                    self._fit_neg(df, y, target)
+                if method == 'inv':
+                    self._fit_inv(df, y, target)
+                    
+                   
+    def _fit_power(self, df, target, parameter):
+        _power = lambda x: np.power(x, parameter)
+        power_encoder = df[target].apply(_power)
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_power' for x in
+                power_encoder.get_feature_names()]
+        self.result_list.append(('power', name, target, power_encoder))
+        
+    def _fit_sin(self, df, target):
+        _sin  = lambda x: np.sin(x)
+        sin_encoder = df[target].apply(_sin)
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_sin' for x in
+                sin_encoder.get_feature_names()]
+        self.result_list.append(('sin', name, target, sin_encoder))
+     
+     def _fit_cos(self, df, target):
+        _cos  = lambda x: np.cos(x)
+        cos_encoder = df[target].apply(_cos)
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_cos' for x in
+                cos_encoder.get_feature_names()]
+        self.result_list.append(('cos', name, target, cos_encoder))
+        
+    def _fit_tan(self, df, target):
+        _tan  = lambda x: np.tan(x)
+        tan_encoder = df[target].apply(_tan)
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_tan' for x in
+                tan_encoder.get_feature_names()]
+        self.result_list.append(('tan', name, target, tan_encoder))
+
+    def _fit_log(self, df, target):
+        _log  = lambda x: np.log(x)
+        log_encoder = df[target].apply(_log)
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_log' for x in
+                log_encoder.get_feature_names()]
+        self.result_list.append(('log', name, target, log_encoder))
+        
+    def _fit_exp(self, df, target):
+        _exp  = lambda x: np.exp(x)
+        exp_encoder = df[target].apply(_exp)
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_exp' for x in
+                exp_encoder.get_feature_names()]
+        self.result_list.append(('exp', name, target, exp_encoder))
+        
+    def _fit_abs(self, df, target):
+        _abs  = lambda x: np.abs(x)
+        abs_encoder = df[target].apply(_abs)
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_abs' for x in
+                abs_encoder.get_feature_names()]
+        self.result_list.append(('abs', name, target, abs_encoder))
+        
+    def _fit_neg(self, df, target):
+        _neg  = lambda x: np.neg(x)
+        neg_encoder = df[target].apply(_neg)
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_neg' for x in
+                neg_encoder.get_feature_names()]
+        self.result_list.append(('abs', name, target, abs_encoder))
+        
+    def _fit_inv(self, df, target):
+        _inv  = lambda x: 1/x
+        inv_encoder = df[target].apply(_inv)
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_inv' for x in
+                inv_encoder.get_feature_names()]
+        self.result_list.append(('inv', name, target, inv_encoder))
+    
+    
+        
+        
+        
 
 
 class BinaryContinuousVarEncoder:
