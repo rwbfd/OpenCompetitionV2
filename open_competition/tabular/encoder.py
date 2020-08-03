@@ -503,3 +503,65 @@ class tree_to_dataframe_for_lightgbm(object):
         tree_dataFrame = pd.concat([tree_dataFrame, row])
         return tree_dataFrame
 
+
+class StandardizeEncoder:
+    def __init__(self):
+        self.result = list()
+
+    def fit(self, df, targets, ):
+        for target in targets:
+            mean = df[target].mean()
+            std = df[target].std()
+            new_name = 'continuous_standardized_' + remove_continuous_discrete_prefix(target)
+            self.result.append((target, mean, std, new_name))
+
+    def transform(self, df):
+        result = df.copy(deep=True)
+        for target, mean, std, new_name in self.result:
+            result[new_name] = (result[target] - mean) / std
+        return result
+
+
+class InteractionEncoder:
+    def __init__(self):
+        self.level = list()
+        self.targets = None
+
+    def fit(self, targets, level='all'):
+        if level == 'all':
+            self.level = [2, 3, 4]
+        else:
+            self.level = level
+        self.targets = targets
+
+    def transform(self, df):
+        result = df.copy(deep=True)
+        for level in self.level:
+            if level == 2:
+                for target_1 in self.targets:
+                    for target_2 in self.targets:
+                        new_name = 'continuous_' + remove_continuous_discrete_prefix(
+                            target_1) + "_" + remove_continuous_discrete_prefix(target_2) + "_cross"
+                        result[new_name] = result[target_1] * result[target_2]
+            if level == 3:
+                for target_1 in self.targets:
+                    for target_2 in self.targets:
+                        for target_3 in self.targets:
+                            new_name = 'continuous_' + remove_continuous_discrete_prefix(
+                                target_1) + "_" + remove_continuous_discrete_prefix(
+                                target_2) + "_" + remove_continuous_discrete_prefix(target_3) + "_cross"
+
+                            result[new_name] = result[target_1] * result[target_2] * result[target_3]
+            if level == 4:
+                for target_1 in self.targets:
+                    for target_2 in self.targets:
+                        for target_3 in self.targets:
+                            for target_4 in self.targets:
+                                new_name = 'continuous_' + remove_continuous_discrete_prefix(
+                                    target_1) + "_" + remove_continuous_discrete_prefix(
+                                    target_2) + "_" + remove_continuous_discrete_prefix(
+                                    target_3) + "_" + remove_continuous_discrete_prefix(target_4) + "_cross"
+                                result[new_name] = result[target_1] * result[target_2] * result[target_3] * result[
+                                    target_4]
+        return result
+
