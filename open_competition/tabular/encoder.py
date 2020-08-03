@@ -196,7 +196,7 @@ class BoostTreeEncoder:  ## TODO: Please add LightGBM and CatBoost and  isolatio
             else:
                 raise Exception("Not Implemented Yet")
 
-            trans_results.append(self._boost_tansform(result[targets], method, name, pos, tree_infos))
+            trans_results.append(self._boost_transform(result[targets], method, name, pos, tree_infos))
 
         return pd.concat(trans_results, axis=1)
 
@@ -207,7 +207,7 @@ class BoostTreeEncoder:  ## TODO: Please add LightGBM and CatBoost and  isolatio
                 df[feature_name] = key
         return df
 
-    def _boost_tansform(self, df, method, name, pos, tree_infos):
+    def _boost_transform(self, df, method, name, pos, tree_infos):
         tree_ids = tree_infos["Node"].drop_duplicates().tolist().sort()
         for tree_id in tree_ids:
             tree_info = tree_infos[tree_infos["Tree"] == tree_id][
@@ -502,3 +502,4 @@ class tree_to_dataframe_for_lightgbm(object):
         row = pd.DataFrame.from_dict(data, orient="index").T
         tree_dataFrame = pd.concat([tree_dataFrame, row])
         return tree_dataFrame
+
