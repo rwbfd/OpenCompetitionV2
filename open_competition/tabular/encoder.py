@@ -333,6 +333,7 @@ class UnaryContinuousVarEncoder:
         self.result_list = list()
 
     def fit_one(self, df, y, targets, config):
+        self.result_list = list()
         for target in targets:
             for method, parameter in config:
                 # when arity=1
@@ -359,15 +360,18 @@ class UnaryContinuousVarEncoder:
                     self._fit_inv(df, target)
                 if method == 'sqrt':
                     self._fit_sqrt(df, target)
-                    
+    def transform(self, df):
+        result = df.copy(deep=True)
+        for method, new_name, target, encoder in self.result_list:
+            result[new_name] = result[target].apply(encoder)
+        return result
 
     def _fit_power(self, df, target, parameter):
-        _power = lambda x: np.power(x, parameter)
-        power_encoder = df[target].apply(_power)
-        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_power' for x in
-                power_encoder.get_feature_names()]
-        self.result_list.append(('power', name, target, power_encoder))
-        
+        order = parameter['order']
+        _power = lambda x: np.power(x, order)
+        new_name = 'continuous_' + remove_continuous_discrete_prefix(target) + "_power_" + str(order)
+        self.result_list.append(('power', new_name, target, _power))
+
     def _fit_sin(self, df, target):
         _sin  = lambda x: np.sin(x)
         sin_encoder = df[target].apply(_sin)
