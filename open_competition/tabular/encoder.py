@@ -411,7 +411,7 @@ class UnaryContinuousVarEncoder:
         self.result_list.append(('abs', name, target, abs_encoder))
         
     def _fit_neg(self, df, target):
-        _neg  = lambda x: np.neg(x)
+        _neg  = lambda x: abs(x)
         neg_encoder = df[target].apply(_neg)
         name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_neg' for x in
                 neg_encoder.get_feature_names()]
