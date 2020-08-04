@@ -338,27 +338,27 @@ class UnaryContinuousVarEncoder:
                 # when arity=1
                 # continuous func
                 if method == 'power':
-                    self._fit_power(df, y, target, parameter)
+                    self._fit_power(df, target, parameter)
                 if method == 'sin':
-                    self._fit_sin(df, y, target)
+                    self._fit_sin(df, target)
                 if method == 'cos':
-                    self._fit_cos(df, y, target)
+                    self._fit_cos(df, target)
                 if method == 'tan':
-                    self._fit_tan(df, y, target)
+                    self._fit_tan(df, target)
                 if method == 'log':
-                    self._fit_log(df, y, target)
+                    self._fit_log(df, target)
                 if method == 'exp':
-                    self._fit_exp(df, y, target)
+                    self._fit_exp(df, target)
                     
                 # uncontinuous func 
                 if method == 'abs':
-                    self._fit_abs(df, y, target)
+                    self._fit_abs(df, target)
                 if method == 'neg':
-                    self._fit_neg(df, y, target)
+                    self._fit_neg(df, target)
                 if method == 'inv':
-                    self._fit_inv(df, y, target)
+                    self._fit_inv(df, target)
                 if method == 'sqrt':
-                    self._fit_sqrt(df, y, target)
+                    self._fit_sqrt(df, target)
                     
 
     def _fit_power(self, df, target, parameter):
@@ -440,13 +440,13 @@ class BinaryContinuousVarEncoder:
         for target1, target2 in targets_pairs:
             for method, parameter in config:
                 if method == 'add':
-                    self._fit_add(df, y, target1, target2)
+                    self._fit_add(df, target1, target2)
                 if method == 'sub':
-                    self._fit_sub(df, y, target1, target2)
+                    self._fit_sub(df, target1, target2)
                 if method == 'mul':
-                    self._fit_mul(df, y, target1, target2)
+                    self._fit_mul(df, target1, target2)
                 if method == 'div':
-                    self._fit_div(df, y, target1, target2)
+                    self._fit_div(df, target1, target2)
                     
     def _fit_add(self, df, target1, target2):
         _add = lambda x, y: np.add(x,y)
