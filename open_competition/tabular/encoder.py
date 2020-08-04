@@ -11,8 +11,8 @@ from sklearn.neighbors import LocalOutlierFactor
 from sklearn.ensemble import IsolationForest
 import xgboost as xgb
 import lightgbm as lgb
-import catboost as cat
 
+from sklearn.decomposition import PCA
 cpu_count = multiprocessing.cpu_count()
 
 
@@ -565,3 +565,25 @@ class InteractionEncoder:
                                     target_4]
         return result
 
+
+class DimReducEncoder:
+    def __init__(self):
+        self.result = list()
+
+    def fit(self, df, targets, config):
+        for target in targets:
+            for method, parameter in config:
+                if method == 'pca':
+                    n_comp = config['n_components']
+                    pos = config['pos']
+                    encoder = PCA(n_comp)
+                    PCA.fit(df[target])
+                    self.result.append((method, encoder, pos, n_comp, target))
+
+    def transform(self, df):
+        result = df.copy(deep=True)
+        for method, encoder, pos, n_comp, target in self.result:
+            if method == 'pca':
+                new_names = ["_pca_" + str(x) + "_pos" for x in range(n_comp)]
+                result[new_names] = encoder.transform(df[target])
+        return result
