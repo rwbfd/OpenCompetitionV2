@@ -37,7 +37,7 @@ class CategoryEncoder(EncoderBase):
     def fit(self, df, y, targets, configurations):
         """
 
-        :param df: the data frame to  be fitted one; can be different from the transformed ones.
+        :param df: the data frame to be fitted; can be different from the transformed ones.
         :param y: the y variable
         :param targets: the variables to be transformed
         :param configurations: in the form of a list of (method, parameter), where method is one of ['woe', 'one-hot','ordinal','hash'],
@@ -135,6 +135,15 @@ class DiscreteEncoder(EncoderBase):
         super(DiscreteEncoder, self).__init__()
 
     def fit(self, df, targets, configurations):
+        """
+
+        :param df: the dataframe to be fitted; can be different from the transformed one;
+        :param targets: the variables to be transformed
+        :param configurations: in the form of a list of (method, parameter), where method is one of ['quantile', 'uniform'],
+            the parameter should contain a key called 'nbins'
+        and parameter is a dictionary pertained to each encoding method
+        :return:
+        """
         self.reset()
         for target in targets:
             for method, parameter in configurations:
@@ -158,8 +167,8 @@ class DiscreteEncoder(EncoderBase):
 
     def transform(self, df):
         result = df.copy(deep=True)
-        for _, name, _ in self.trans_ls:
-            if name not in df.columns:
+        for target, _, _ in self.trans_ls:
+            if target not in df.columns:
                 raise Exception("The columns to be transformed are not in the dataframe.")
 
         for target, name, intervals in self.trans_ls:
@@ -182,7 +191,7 @@ class UnaryContinuousVarEncoder:
     def __init__(self):
         self.result_list = list()
 
-    def fit_one(self, df, y, targets, config):
+    def fit_one(self, targets, config):
         self.result_list = list()
         for target in targets:
             for method, parameter in config:
@@ -254,7 +263,7 @@ class UnaryContinuousVarEncoder:
         self.result_list.append(('abs', new_name, target, _abs))
 
     def _fit_neg(self, target):
-        _neg = lambda x: np.neg(x)
+        _neg = lambda x: -(x)
         new_name = ['continuous_' + remove_continuous_discrete_prefix(target) + '_neg']
         self.result_list.append(('neg', new_name, target, _neg))
 
@@ -273,11 +282,11 @@ class BinaryContinuousVarEncoder:
     def __init__(self):
         self.result_list = list()
 
-    def fit(self, df, targets_pairs, config):
+    def fit(self, targets_pairs, config):
         for target1, target2 in targets_pairs:
             for method, parameter in config:
                 if method == 'add':
-                    self._fit_add(arget1, target2)
+                    self._fit_add(target1, target2)
                 if method == 'sub':
                     self._fit_sub(target1, target2)
                 if method == 'mul':
@@ -298,7 +307,7 @@ class BinaryContinuousVarEncoder:
         self.result_list.append(('add', new_name, target1, target2, _add))
 
     def _fit_sub(self, target1, target2):
-        _sub = lambda x, y: np.sub(x, y)
+        _sub = lambda x, y: x - y
         new_name = ['continuous_' + remove_continuous_discrete_prefix(target1)
                     + '_' + remove_continuous_discrete_prefix(target2) + '_sub']
         self.result_list.append(('sub', new_name, target1, target2, _sub))
