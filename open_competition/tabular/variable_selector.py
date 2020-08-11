@@ -29,7 +29,18 @@ def get_eval_index(y, y_predict, metric='acc'):
         raise Exception("Not implemented yet.")
 
 
-def fit_and_predict(train, test, target, nbin=10, smoothing=0.8, predict_prob=False):
+def get_dup_var(df, sample_frac=1.0):
+    df_sample = df.sample(frac=sample_frac).copy(deep=True)
+    dup = list()
+    for column_a in df_sample.columns:
+        for column_b in df_sample.columns:
+            if column_b != column_a and column_a not in dup and column_b not in dup and df_sample[column_a].eq(
+                    df_sample[column_b]).all():
+                dup.append(column_b)
+    return dup
+
+
+def fit_and_predict(train, test, target, nbin=10, smoothing=0.2, predict_prob=False):
     """
     We assume that 'target' variable have no prefix
     :param train:
@@ -64,9 +75,14 @@ def fit_and_predict(train, test, target, nbin=10, smoothing=0.8, predict_prob=Fa
     var_type_transformed = get_var_type(train_transformed)
     continuous_var = var_type_transformed['continuous']
 
+    dup_vars = get_dup_var(train_transformed[continuous_var])
+
     train_x = train_transformed[continuous_var]
-    test_x = train_transformed[continuous_var]
-    train_y = test_transformed[target]
+    test_x = test_transformed[continuous_var]
+    train_y = train_transformed[target]
+
+    train_x = train_x.drop(columns=dup_vars)
+    test_x = test_x.drop(columns=dup_vars)
 
     clf = LogisticRegression()
     clf.fit(train_x, train_y)
@@ -77,7 +93,7 @@ def fit_and_predict(train, test, target, nbin=10, smoothing=0.8, predict_prob=Fa
         return clf.predict(test_x)
 
 
-def get_perm_importance(train, test, target, metric='acc', nbins=10, smoothing=0.8, predict_prob=False):
+def get_perm_importance(train, test, target, metric='acc', nbins=10, smoothing=0.2, predict_prob=False):
     columns = list(train.columns)
     columns.remove(target)
     result = OrderedDict()
