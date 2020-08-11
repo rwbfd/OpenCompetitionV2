@@ -177,8 +177,8 @@ class DiscreteEncoder(EncoderBase):
 
     def _get_uniform_intervals(self, df, target, nbins):
         target_var = df[target]
-        minimum = target_var.min()
-        maximum = target_var.max()
+        minimum = target_var[target_var != -np.inf].min()
+        maximum = target_var[target_var != np.inf].max()
 
         intervals = get_uniform_interval(minimum, maximum, nbins)
         return intervals
@@ -219,10 +219,6 @@ class UnaryContinuousVarEncoder(EncoderBase):
     def transform(self, df):
         result = df.copy(deep=True)
         for method, new_name, target, encoder in self.trans_ls:
-            print(method)
-            print(new_name)
-            print(target)
-            print(encoder)
             result[new_name] = result[target].apply(encoder)
         return result
 
@@ -481,7 +477,7 @@ class GroupbyEncoder(EncoderBase):
             result = result.merge(groupby_result, on=groupby, how='left')
         return result
 
-    def _fit_one(self, df, target, groupby_vars, operation):  # TODO: Add other aggregation options, such as kurtosis
+    def _fit_one(self, df, target, groupby_vars, operation):
         result = df.groupby(groupby_vars, as_index=False).agg({target: operation})
         return result
 
@@ -525,6 +521,10 @@ def get_interval(x, sorted_intervals):  ### Needs to be rewritten to remove foun
 
     if pd.isnull(x):
         return np.nan
+    if x == np.inf:
+        return "i_inf"
+    if x == -np.inf:
+        return "i_neg_inf"
     if x < sorted_intervals[0] or x > sorted_intervals[-1]:
         return np.nan
     while not found and interval < len(sorted_intervals) - 1:
