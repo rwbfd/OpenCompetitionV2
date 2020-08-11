@@ -187,16 +187,14 @@ class DiscreteEncoder(EncoderBase):
         return get_quantile_interval(df[target], nbins)
 
 
-class UnaryContinuousVarEncoder:
+class UnaryContinuousVarEncoder(EncoderBase):
     def __init__(self):
-        self.result_list = list()
+        super(UnaryContinuousVarEncoder, self).__init__()
 
-    def fit_one(self, targets, config):
-        self.result_list = list()
+    def fit(self, targets, config):
+        self.reset()
         for target in targets:
             for method, parameter in config:
-                # when arity=1
-                # continuous func
                 if method == 'power':
                     self._fit_power(target, parameter)
                 if method == 'sin':
@@ -209,8 +207,6 @@ class UnaryContinuousVarEncoder:
                     self._fit_log(target)
                 if method == 'exp':
                     self._fit_exp(target)
-
-                # uncontinuous func
                 if method == 'abs':
                     self._fit_abs(target)
                 if method == 'neg':
@@ -222,7 +218,11 @@ class UnaryContinuousVarEncoder:
 
     def transform(self, df):
         result = df.copy(deep=True)
-        for method, new_name, target, encoder in self.result_list:
+        for method, new_name, target, encoder in self.trans_ls:
+            print(method)
+            print(new_name)
+            print(target)
+            print(encoder)
             result[new_name] = result[target].apply(encoder)
         return result
 
@@ -230,61 +230,61 @@ class UnaryContinuousVarEncoder:
         order = parameter['order']
         _power = lambda x: np.power(x, order)
         new_name = 'continuous_' + remove_continuous_discrete_prefix(target) + "_power_" + str(order)
-        self.result_list.append(('power', new_name, target, _power))
+        self.trans_ls.append(('power', new_name, target, _power))
 
     def _fit_sin(self, target):
         _sin = lambda x: np.sin(x)
-        new_name = ['continuous_' + remove_continuous_discrete_prefix(target) + '_sin']
-        self.result_list.append(('sin', new_name, target, _sin))
+        new_name = 'continuous_' + remove_continuous_discrete_prefix(target) + '_sin'
+        self.trans_ls.append(('sin', new_name, target, _sin))
 
     def _fit_cos(self, target):
         _cos = lambda x: np.cos(x)
-        new_name = ['continuous_' + remove_continuous_discrete_prefix(target) + '_cos']
-        self.result_list.append(('cos', new_name, target, _cos))
+        new_name = 'continuous_' + remove_continuous_discrete_prefix(target) + '_cos'
+        self.trans_ls.append(('cos', new_name, target, _cos))
 
     def _fit_tan(self, target):
         _tan = lambda x: np.tan(x)
-        new_name = ['continuous_' + remove_continuous_discrete_prefix(target) + '_tan']
-        self.result_list.append(('tan', new_name, target, _tan))
+        new_name = 'continuous_' + remove_continuous_discrete_prefix(target) + '_tan'
+        self.trans_ls.append(('tan', new_name, target, _tan))
 
     def _fit_log(self, target):
         _log = lambda x: np.log(x)
-        new_name = ['continuous_' + remove_continuous_discrete_prefix(target) + '_log']
-        self.result_list.append(('log', new_name, target, _log))
+        new_name = 'continuous_' + remove_continuous_discrete_prefix(target) + '_log'
+        self.trans_ls.append(('log', new_name, target, _log))
 
     def _fit_exp(self, target):
         _exp = lambda x: np.exp(x)
-        new_name = ['continuous_' + remove_continuous_discrete_prefix(target) + '_exp']
-        self.result_list.append(('exp', new_name, target, _exp))
+        new_name = 'continuous_' + remove_continuous_discrete_prefix(target) + '_exp'
+        self.trans_ls.append(('exp', new_name, target, _exp))
 
     def _fit_abs(self, target):
         _abs = lambda x: np.abs(x)
-        new_name = ['continuous_' + remove_continuous_discrete_prefix(target) + '_abs']
-        self.result_list.append(('abs', new_name, target, _abs))
+        new_name = 'continuous_' + remove_continuous_discrete_prefix(target) + '_abs'
+        self.trans_ls.append(('abs', new_name, target, _abs))
 
     def _fit_neg(self, target):
         _neg = lambda x: -(x)
-        new_name = ['continuous_' + remove_continuous_discrete_prefix(target) + '_neg']
-        self.result_list.append(('neg', new_name, target, _neg))
+        new_name = 'continuous_' + remove_continuous_discrete_prefix(target) + '_neg'
+        self.trans_ls.append(('neg', new_name, target, _neg))
 
     def _fit_inv(self, target):
         _inv = lambda x: np.divide(1, x)
-        new_name = ['continuous_' + remove_continuous_discrete_prefix(target) + '_inv']
-        self.result_list.append(('inv', new_name, target, _inv))
+        new_name = 'continuous_' + remove_continuous_discrete_prefix(target) + '_inv'
+        self.trans_ls.append(('inv', new_name, target, _inv))
 
     def _fit_sqrt(self, target):
         _sqrt = lambda x: np.sqrt(x)
-        new_name = ['continuous_' + remove_continuous_discrete_prefix(target) + '_sqrt']
-        self.result_list.append(('sqrt', new_name, target, _sqrt))
+        new_name = 'continuous_' + remove_continuous_discrete_prefix(target) + '_sqrt'
+        self.trans_ls.append(('sqrt', new_name, target, _sqrt))
 
 
-class BinaryContinuousVarEncoder:
+class BinaryContinuousVarEncoder(EncoderBase):
     def __init__(self):
-        self.result_list = list()
+        super(BinaryContinuousVarEncoder, self).__init__()
 
     def fit(self, targets_pairs, config):
         for target1, target2 in targets_pairs:
-            for method, parameter in config:
+            for method in config:
                 if method == 'add':
                     self._fit_add(target1, target2)
                 if method == 'sub':
@@ -296,33 +296,33 @@ class BinaryContinuousVarEncoder:
 
     def transform(self, df):
         result = df.copy(deep=True)
-        for method, new_name, target1, target2, encoder in self.result_list:
+        for method, new_name, target1, target2, encoder in self.trans_ls:
             result[new_name] = result.apply(lambda row: encoder(row[target1], row[target2]), axis=1)
         return result
 
     def _fit_add(self, target1, target2):
         _add = lambda x, y: np.add(x, y)
-        new_name = ['continuous_' + remove_continuous_discrete_prefix(target1)
-                    + '_' + remove_continuous_discrete_prefix(target2) + '_add']
-        self.result_list.append(('add', new_name, target1, target2, _add))
+        new_name = 'continuous_' + remove_continuous_discrete_prefix(target1) + '_' + remove_continuous_discrete_prefix(
+            target2) + '_add'
+        self.trans_ls.append(('add', new_name, target1, target2, _add))
 
     def _fit_sub(self, target1, target2):
         _sub = lambda x, y: x - y
-        new_name = ['continuous_' + remove_continuous_discrete_prefix(target1)
-                    + '_' + remove_continuous_discrete_prefix(target2) + '_sub']
-        self.result_list.append(('sub', new_name, target1, target2, _sub))
+        new_name = 'continuous_' + remove_continuous_discrete_prefix(target1) + '_' + remove_continuous_discrete_prefix(
+            target2) + '_sub'
+        self.trans_ls.append(('sub', new_name, target1, target2, _sub))
 
     def _fit_mul(self, target1, target2):
         _mul = lambda x, y: np.multiply(x, y)
-        new_name = ['continuous_' + remove_continuous_discrete_prefix(target1)
-                    + '_' + remove_continuous_discrete_prefix(target2) + '_mul']
-        self.result_list.append(('mul', new_name, target1, target2, _mul))
+        new_name = 'continuous_' + remove_continuous_discrete_prefix(target1) + '_' + remove_continuous_discrete_prefix(
+            target2) + '_mul'
+        self.trans_ls.append(('mul', new_name, target1, target2, _mul))
 
     def _fit_div(self, target1, target2):
         _div = lambda x, y: np.divide(x, y)
-        new_name = ['continuous_' + remove_continuous_discrete_prefix(target1)
-                    + '_' + remove_continuous_discrete_prefix(target2) + '_div']
-        self.result_list.append(('div', new_name, target1, target2, _div))
+        new_name = 'continuous_' + remove_continuous_discrete_prefix(target1) + '_' + remove_continuous_discrete_prefix(
+            target2) + '_div'
+        self.trans_ls.append(('div', new_name, target1, target2, _div))
 
 
 class BoostTreeEncoder(EncoderBase):
