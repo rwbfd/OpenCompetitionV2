@@ -412,15 +412,16 @@ class BoostTreeEncoder(EncoderBase):
         return df
 
 
-class AnomalyScoreEncoder(object):
+class AnomalyScoreEncoder(EncoderBase):
     def __init__(self, nthread=None):
-        self.result_list = list()
+        super(AnomalyScoreEncoder, self).__init__()
         if nthread:
             self.nthread = cpu_count
         else:
             self.nthread = nthread
 
     def fit(self, df, y, targets_list, config):
+        self.reset()
         for method, parameter in config:
             if method == 'IsolationForest':
                 self._fit_isolationForest(df, y, targets_list, parameter)
@@ -429,7 +430,7 @@ class AnomalyScoreEncoder(object):
 
     def transform(self, df):
         result = df.copy(deep=True)
-        for method, name, targets, model in self.result_list:
+        for method, name, targets, model in self.trans_ls:
             result[name + "_" + method] = model.predict(df[targets])
 
         return result
@@ -443,7 +444,7 @@ class AnomalyScoreEncoder(object):
 
             name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
             name = "discrete_" + "_".join(name_remove)
-            self.result_list.append(('IsolationForest', name, targets, model))
+            self.trans_ls.append(('IsolationForest', name, targets, model))
 
     def _fit_LOF(self, df, y, targets_list, parameter):
         for targets in targets_list:
@@ -454,7 +455,7 @@ class AnomalyScoreEncoder(object):
 
             name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
             name = "discrete_" + "_".join(name_remove)
-            self.result_list.append(("LOF", name, targets, model))
+            self.trans_ls.append(("LOF", name, targets, model))
 
 
 class GroupbyEncoder(EncoderBase):
@@ -677,7 +678,7 @@ class StandardizeEncoder(EncoderBase):
         for target in targets:
             mean = df[target].mean()
             std = df[target].std()
-            new_name = 'continuous_standardized_' + remove_continuous_discrete_prefix(target)
+            new_name = 'continuous_' + remove_continuous_discrete_prefix(target) + '_standardized'
             self.trans_ls.append((target, mean, std, new_name))
 
     def transform(self, df):
