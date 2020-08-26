@@ -31,7 +31,7 @@ class XGBOpt:
 
 @dataclass
 class LGBOpt:
-
+    num_threads:hyperopt.pyll.base.Apply = hp.choice('num_threads', [cpu_count])
 
 class FitterBase(object):
     def __init__(self, label, metric):

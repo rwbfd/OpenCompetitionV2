@@ -143,3 +143,12 @@ def eval_binary_classification(y_true, y_pred_class, y_pred_prob):
     result = eval_classification(y_true, y_pred_class)
     result['auc'] = roc_auc_score(y_true, y_pred_prob)
     return result
+
+def get_result_from_dump(file_name='lightgbm.txt'):
+    result = pd.read_csv(file_name, sep='\t', header=None)
+    result['train_eval']=result[1].map(lambda x: float(x.split(":")[1].strip()))
+    result['test_eval']=result[2].map(lambda x: float(x.split(":")[1].strip()))
+    min_id = result['test_eval'].idxmin()
+    test_min = result['test_eval'].min()
+    train_min = result['train_eval'].loc[min_id]
+    return train_min, test_min
