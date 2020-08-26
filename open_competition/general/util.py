@@ -1,6 +1,9 @@
 # coding = 'utf-8'
 import copy
 import pandas as pd
+import numpy as np
+from statsmodels.stats.outliers_influence import variance_inflation_factor
+
 from collections import OrderedDict
 
 from sklearn.model_selection import KFold
@@ -144,11 +147,46 @@ def eval_binary_classification(y_true, y_pred_class, y_pred_prob):
     result['auc'] = roc_auc_score(y_true, y_pred_prob)
     return result
 
+
 def get_result_from_dump(file_name='lightgbm.txt'):
     result = pd.read_csv(file_name, sep='\t', header=None)
-    result['train_eval']=result[1].map(lambda x: float(x.split(":")[1].strip()))
-    result['test_eval']=result[2].map(lambda x: float(x.split(":")[1].strip()))
+    result['train_eval'] = result[1].map(lambda x: float(x.split(":")[1].strip()))
+    result['test_eval'] = result[2].map(lambda x: float(x.split(":")[1].strip()))
     min_id = result['test_eval'].idxmin()
     test_min = result['test_eval'].min()
     train_min = result['train_eval'].loc[min_id]
     return train_min, test_min
+
+
+def add_const(data, column_name='const'):
+    data[column_name] = [1 for x in range(data.shape[0])]
+    return data
+
+
+def vif(x):
+    vif = pd.DataFrame()
+    vif['variables'] = x.columns
+    vif['vif'] = [variance_inflation_factor(x.values, i) for i in range(x.shape[1])]
+
+    return vif
+
+
+def drop_const(data):
+    data_copy = data.copy(deep=True)
+    for column in data_copy.columns.values:
+        if len(data_copy[column].unique()) <= 1:
+            data_copy = data_copy.drop(columns=[column])
+    return data_copy
+
+
+def drop_multi_collinear(data):
+    data_copy = data.copy(deep=True)
+    data_copy = add_const(data_copy)
+    result = vif(data_copy)
+    while result['vif'].map(lambda x: np.isinf(x)).any():
+        column_to_drop = result[np.isinf(result['vif'])].iloc[0, 0]
+
+        data_copy = data_copy.drop(columns=[column_to_drop])
+        result = vif(data_copy)
+    data_copy = data_copy.drop(columns=['const'])
+    return data_copy
