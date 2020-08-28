@@ -6,6 +6,7 @@ from sklearn.metrics import f1_score
 from sklearn.metrics import roc_auc_score
 from sklearn.linear_model import LogisticRegression
 from ..general.util import get_var_type
+from ..general.util import drop_const, drop_multi_collinear
 from .encoder import CategoryEncoder, DiscreteEncoder, to_str
 from copy import deepcopy
 import numpy as np
@@ -75,14 +76,16 @@ def fit_and_predict(train, test, target, nbin=10, smoothing=0.2, predict_prob=Fa
     var_type_transformed = get_var_type(train_transformed)
     continuous_var = var_type_transformed['continuous']
 
-    dup_vars = get_dup_var(train_transformed[continuous_var])
 
     train_x = train_transformed[continuous_var]
     test_x = test_transformed[continuous_var]
     train_y = train_transformed[target]
 
-    train_x = train_x.drop(columns=dup_vars)
-    test_x = test_x.drop(columns=dup_vars)
+    train_x = drop_const(train_x)
+    test_x = drop_const(test_x)
+
+    train_x = drop_multi_collinear(train_x)
+    test_x = drop_multi_collinear(test_x)
 
     clf = LogisticRegression()
     clf.fit(train_x, train_y)
