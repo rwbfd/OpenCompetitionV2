@@ -190,3 +190,18 @@ def drop_multi_collinear(data):
         result = vif(data_copy)
     data_copy = data_copy.drop(columns=['const'])
     return data_copy
+
+
+def to_str(x):
+    if np.isnan(x):
+        return "NAN"
+    else:
+        return str(x)
+
+def rm_prefix(x):
+    if x.startswith("continuous_"):
+        return x[11:]
+    elif x.startswith("discrete_"):
+        return x[9:]
+    else:
+        return x

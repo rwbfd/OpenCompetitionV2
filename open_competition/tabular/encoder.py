@@ -95,7 +95,7 @@ class CategoryEncoder(EncoderBase):
 
     def _fit_woe(self, df, y, target):  ##
         woe_encoder = ce.woe.WOEEncoder(cols=target)
-        woe_encoder.fit(df[target].map(to_str), df[y])
+        woe_encoder.fit(df[target].map(to_str), df[y].map(to_str))
         name = 'continuous_' + remove_continuous_discrete_prefix(target) + "_woe"
         self.trans_ls.append(('woe', name, target, woe_encoder))
 
@@ -113,9 +113,9 @@ class CategoryEncoder(EncoderBase):
         for method, name, target, encoder in self.trans_ls:
             if method == 'woe':
                 if y:
-                    result_df[name] = encoder.transform(df[target], df[y])
+                    result_df[name] = encoder.transform(df[target].map(to_str), df[y].map(to_str))
                 else:
-                    result_df[name] = encoder.transform(df[target])
+                    result_df[name] = encoder.transform(df[target].map(to_str))
             if method == 'one-hot':
                 result_df[name] = encoder.transform(df[target].map(to_str))
             if method == 'target':

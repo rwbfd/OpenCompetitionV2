@@ -132,9 +132,6 @@ class XgBoostFitter(FitterBase):
 
         self.opt_params = fmin(train_impl_nfold, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
 
-    def get_rand_param(self):
-        return hyperopt.pyll.stochastic.sample(asdict(self.opt))
-
     def train_k_fold(self, k_fold, train_data, test_data, params=None, use_early_stop=True,
                      verbose_eval=False, drop_test_y=True):
         if params is not None:
@@ -201,6 +198,54 @@ class LGBFitter(FitterBase):
             return self.get_loss(eval_df[self.label], y_pred)
 
         self.opt_params = fmin(train_impl, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
+
+    def search_k_fold(self, k_fold, data, use_early_stop=True, verbose_eval=False):
+        self.opt_params = dict()
+
+        def train_impl_nfold(params):
+            loss = list()
+            for train_id, eval_id in k_fold.spilt(data):
+                train_df = data.loc[train_id]
+                eval_df = data.loc[eval_id]
+                self.train(train_df, eval_df, params, use_early_stop=use_early_stop, verbose_eval=verbose_eval)
+                deval = lgb.Dataset(eval_df.drop(columns=[self.label]))
+                if self.metric == 'auc':
+                    y_pred = self.clf.predict(deval)
+                else:
+                    y_pred = (self.clf.predict(deval) > 0.5).astype(int)
+                loss.append(self.get_loss(eval_df[self.label], y_pred))
+            return np.mean(loss)
+
+        self.opt_params = fmin(train_impl_nfold, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
+
+    def train_k_fold(self, k_fold, train_data, test_data, params=None, use_early_stop=True,
+                     verbose_eval=False, drop_test_y=True):
+        if params is not None:
+            use_params = params
+        else:
+            use_params = self.opt_params
+        train_pred = np.ndarray([np.NaN for x in range(train_data.shape[0])])
+        test_pred = np.ndarray([0 for x in range(test_data.shape[0])])
+        if drop_test_y:
+            dtest = lgb.Dataset(test_data.drop(columns=self.label))
+        else:
+            dtest = lgb.Dataset(test_data)
+        for train_id, eval_id in k_fold.split(train_data):
+            train_df = train_data.loc[train_id]
+            eval_df = train_data.loc[eval_id]
+            dtrain = lgb.Dataset(train_df.drop(columns=[self.label]), train_df[self.label])
+            deval = lgb.Dataset(eval_df.drop(columns=[self.label]), eval_df[self.label])
+            evallist = [(deval, 'eval')]
+            if use_early_stop:
+                clf = lgb.train(use_params, dtrain, num_boost_round=params['num_round'], valid_sets=evallist,
+                                early_stopping_rounds=params['early_stopping_rounds'], verbose_eval=verbose_eval)
+            else:
+                clf = lgb.train(use_params, dtrain, num_boost_round=params['num_round'], valid_sets=evallist,
+                                verbose_eval=verbose_eval)
+            train_pred[eval_id] = clf.predict(deval)
+            test_pred += clf.predict(dtest)
+        test_pred = test_pred / k_fold.n_splits
+        return train_pred, test_pred
 
 
 # class ModelFitter:
