@@ -171,8 +171,10 @@ class LGBFitter(FitterBase):
             self.opt = opt
         else:
             self.opt = LGBOpt()
+        self.best_round = None
 
     def train(self, train_df, eval_df, params=None, use_best_eval=True):
+        self.best_round = None
         dtrain = lgb.Dataset(train_df.drop(columns=[self.label]), train_df[self.label])
         deval = lgb.Dataset(eval_df.drop(columns=[self.label]), eval_df[self.label])
         evallist = [dtrain, deval]
@@ -193,13 +195,13 @@ class LGBFitter(FitterBase):
                     min_error = float(output[idx].split("\t")[2].split(":")[1])
                     min_index = idx
             print("The minimum is attained in round %d" % (min_index + 1))
-            self.clf = lgb.train(use_params, dtrain, min_index + 1, valid_sets=evallist,
-                                 verbose_eval=False)
+            self.best_round = min_index+1
             return output
         else:
             with io.StringIO() as buf, redirect_stdout(buf):
                 self.clf = lgb.train(use_params, dtrain, num_round, valid_sets=evallist)
                 output = buf.getvalue().split("\n")
+            self.best_round = num_round
             return output
 
     def search(self, train_df, eval_df, use_best_eval=True):
@@ -208,9 +210,9 @@ class LGBFitter(FitterBase):
         def train_impl(params):
             self.train(train_df, eval_df, params, use_best_eval)
             if self.metric == 'auc':
-                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round)
             else:
-                y_pred = (self.clf.predict(eval_df.drop(columns=[self.label])) > 0.5).astype(int)
+                y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round) > 0.5).astype(int)
             return self.get_loss(eval_df[self.label], y_pred)
 
         self.opt_params = fmin(train_impl, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
@@ -225,9 +227,9 @@ class LGBFitter(FitterBase):
                 eval_df = data.loc[eval_id]
                 self.train(train_df, eval_df, params, use_best_eval)
                 if self.metric == 'auc':
-                    y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
+                    y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round)
                 else:
-                    y_pred = (self.clf.predict(eval_df.drop(columns=[self.label])) > 0.5).astype(int)
+                    y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round) > 0.5).astype(int)
                 loss.append(self.get_loss(eval_df[self.label], y_pred))
             return np.mean(loss)
 
@@ -254,7 +256,7 @@ class LGBFitter(FitterBase):
             evallist = [dtrain, deval]
             if use_best_eval:
                 with io.StringIO() as buf, redirect_stdout(buf):
-                    lgb.train(use_params, dtrain, num_round, valid_sets=evallist)
+                    clf = lgb.train(use_params, dtrain, num_round, valid_sets=evallist)
                     output = buf.getvalue().split("\n")
                 min_error = np.inf
                 min_index = 0
@@ -264,14 +266,14 @@ class LGBFitter(FitterBase):
                         min_index = idx
                 acc_result.append(min_error)
                 print("The minimum is attained in round %d" % (min_index + 1))
-                clf = lgb.train(use_params, dtrain, min_index + 1, valid_sets=evallist,
-                                verbose_eval=False)
+                best_round = min_index + 1
 
             else:
                 clf = lgb.train(use_params, dtrain, num_round, valid_sets=evallist,
                                 verbose_eval=False)
-            train_pred[eval_id] = clf.predict(eval_df.drop(columns=self.label))
-            test_pred += clf.predict(dtest)
+                best_round = num_round
+            train_pred[eval_id] = clf.predict(eval_df.drop(columns=self.label), num_iteration=best_round)
+            test_pred += clf.predict(dtest, num_iteration=best_round)
         test_pred /= k_fold.n_splits
         return train_pred, test_pred, acc_result
 
