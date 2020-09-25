@@ -14,6 +14,8 @@ from sklearn.metrics import recall_score
 from sklearn.metrics import f1_score
 from sklearn.metrics import roc_auc_score
 import numpy as np
+import io
+from contextlib import redirect_stdout
 
 cpu_count = multiprocessing.cpu_count()
 
@@ -26,7 +28,7 @@ class XGBOpt:
     max_depth: hyperopt.pyll.base.Apply = hp.choice('max_depth', [4, 5, 6, 7, 8])
     early_stopping_rounds: hyperopt.pyll.base.Apply = hp.choice('early_stopping_rounds', [50])
     num_round: hyperopt.pyll.base.Apply = hp.choice('num_round', [1000])
-    eta: hyperopt.pyll.base.Apply = hp.uniform('eta', 0.01, 0.1)
+    eta: hyperopt.pyll.base.Apply = hp.uniform('eta', 0.01, 0.011)
     subsample: hyperopt.pyll.base.Apply = hp.uniform('subsample', 0.8, 1)
     colsample_bytree: hyperopt.pyll.base.Apply = hp.uniform('colsample_bytree', 0.3, 1)
     gamma: hyperopt.pyll.base.Apply = hp.choice('gamma', [0, 1, 5])
@@ -37,7 +39,7 @@ class LGBOpt:
     num_threads: hyperopt.pyll.base.Apply = hp.choice('num_threads', [cpu_count])
     num_leaves: hyperopt.pyll.base.Apply = hp.choice('num_leaves', [64])
     metric: hyperopt.pyll.base.Apply = hp.choice('metric', ['binary_error'])
-    num_rounds: hyperopt.pyll.base.Apply = hp.choice('num_rounds', [6000])
+    num_round: hyperopt.pyll.base.Apply = hp.choice('num_rounds', [1000])
     objective: hyperopt.pyll.base.Apply = hp.choice('objective', ['binary'])
     learning_rate: hyperopt.pyll.base.Apply = hp.uniform('learning_rate', 0.01, 0.1)
     feature_fraction: hyperopt.pyll.base.Apply = hp.uniform('feature_fraction', 0.5, 1.0)
@@ -89,9 +91,9 @@ class XgBoostFitter(FitterBase):
         deval = xgb.DMatrix(eval_df.drop(columns=[self.label]), eval_df[self.label])
         evallist = [(deval, 'eval')]
         if params is None:
-            use_params = self.opt_params
+            use_params = deepcopy(self.opt_params)
         else:
-            use_params = params
+            use_params = deepcopy(params)
         if use_early_stop:
             self.clf = xgb.train(use_params, dtrain, num_boost_round=params['num_round'], evals=evallist,
                                  early_stopping_rounds=params['early_stopping_rounds'], verbose_eval=verbose_eval)
@@ -135,9 +137,9 @@ class XgBoostFitter(FitterBase):
     def train_k_fold(self, k_fold, train_data, test_data, params=None, use_early_stop=True,
                      verbose_eval=False, drop_test_y=True):
         if params is not None:
-            use_params = params
+            use_params = deepcopy(params)
         else:
-            use_params = self.opt_params
+            use_params = deepcopy(self.opt_params)
         train_pred = np.ndarray([np.NaN for x in range(train_data.shape[0])])
         test_pred = np.ndarray([0 for x in range(test_data.shape[0])])
         if drop_test_y:
@@ -170,83 +172,108 @@ class LGBFitter(FitterBase):
         else:
             self.opt = LGBOpt()
 
-    def train(self, train_df, eval_df, params=None, use_early_stop=True, verbose_eval=False):
+    def train(self, train_df, eval_df, params=None, use_best_eval=True):
         dtrain = lgb.Dataset(train_df.drop(columns=[self.label]), train_df[self.label])
         deval = lgb.Dataset(eval_df.drop(columns=[self.label]), eval_df[self.label])
-        evallist = [deval]
+        evallist = [dtrain, deval]
         if params is None:
-            use_params = self.opt_params
+            use_params = deepcopy(self.opt_params)
         else:
-            use_params = params
-        if use_early_stop:
-            self.clf = lgb.train(use_params, dtrain, num_boost_round=params['num_round'], valid_sets=evallist,
-                                 early_stopping_rounds=params['early_stopping_rounds'], verbose_eval=verbose_eval)
-        else:
-            self.clf = lgb.train(use_params, dtrain, num_boost_round=params['num_round'], valid_sets=evallist,
-                                 verbose_eval=verbose_eval)
+            use_params = deepcopy(params)
 
-    def search(self, train_df, eval_df):
+        num_round = use_params.pop('num_round')
+        if use_best_eval:
+            with io.StringIO() as buf, redirect_stdout(buf):
+                clf = lgb.train(use_params, dtrain, num_round, valid_sets=evallist)
+                output = buf.getvalue().split("\n")
+            min_error = np.inf
+            min_index = 0
+            for idx in range(len(output) - 1):
+                if min_error > float(output[idx].split("\t")[2].split(":")[1]):
+                    min_error = float(output[idx].split("\t")[2].split(":")[1])
+                    min_index = idx
+            print("The minimum is attained in round %d" % (min_index + 1))
+            self.clf = lgb.train(use_params, dtrain, min_index + 1, valid_sets=evallist,
+                                 verbose_eval=False)
+            return output
+        else:
+            with io.StringIO() as buf, redirect_stdout(buf):
+                self.clf = lgb.train(use_params, dtrain, num_round, valid_sets=evallist)
+                output = buf.getvalue().split("\n")
+            return output
+
+    def search(self, train_df, eval_df, use_best_eval=True):
         self.opt_params = dict()
-        deval = lgb.Dataset(eval_df.drop(columns=[self.label]))
 
         def train_impl(params):
-            self.train(train_df, eval_df, params)
+            self.train(train_df, eval_df, params, use_best_eval)
             if self.metric == 'auc':
-                y_pred = self.clf.predict(deval)
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
             else:
-                y_pred = (self.clf.predict(deval) > 0.5).astype(int)
+                y_pred = (self.clf.predict(eval_df.drop(columns=[self.label])) > 0.5).astype(int)
             return self.get_loss(eval_df[self.label], y_pred)
 
         self.opt_params = fmin(train_impl, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
 
-    def search_k_fold(self, k_fold, data, use_early_stop=True, verbose_eval=False):
+    def search_k_fold(self, k_fold, data, use_best_eval=True):
         self.opt_params = dict()
 
         def train_impl_nfold(params):
             loss = list()
-            for train_id, eval_id in k_fold.spilt(data):
+            for train_id, eval_id in k_fold.split(data):
                 train_df = data.loc[train_id]
                 eval_df = data.loc[eval_id]
-                self.train(train_df, eval_df, params, use_early_stop=use_early_stop, verbose_eval=verbose_eval)
-                deval = lgb.Dataset(eval_df.drop(columns=[self.label]))
+                self.train(train_df, eval_df, params, use_best_eval)
                 if self.metric == 'auc':
-                    y_pred = self.clf.predict(deval)
+                    y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
                 else:
-                    y_pred = (self.clf.predict(deval) > 0.5).astype(int)
+                    y_pred = (self.clf.predict(eval_df.drop(columns=[self.label])) > 0.5).astype(int)
                 loss.append(self.get_loss(eval_df[self.label], y_pred))
             return np.mean(loss)
 
         self.opt_params = fmin(train_impl_nfold, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
 
-    def train_k_fold(self, k_fold, train_data, test_data, params=None, use_early_stop=True,
-                     verbose_eval=False, drop_test_y=True):
+    def train_k_fold(self, k_fold, train_data, test_data, params=None, drop_test_y=True, use_best_eval=True):
+        acc_result = list()
         if params is not None:
             use_params = params
         else:
             use_params = self.opt_params
-        train_pred = np.ndarray([np.NaN for x in range(train_data.shape[0])])
-        test_pred = np.ndarray([0 for x in range(test_data.shape[0])])
+        num_round = use_params.pop('num_round')
+        train_pred = np.empty(train_data.shape[0])
+        test_pred = np.empty(test_data.shape[0])
         if drop_test_y:
-            dtest = lgb.Dataset(test_data.drop(columns=self.label))
+            dtest = test_data.drop(columns=self.label)
         else:
-            dtest = lgb.Dataset(test_data)
+            dtest = test_data
         for train_id, eval_id in k_fold.split(train_data):
             train_df = train_data.loc[train_id]
             eval_df = train_data.loc[eval_id]
             dtrain = lgb.Dataset(train_df.drop(columns=[self.label]), train_df[self.label])
             deval = lgb.Dataset(eval_df.drop(columns=[self.label]), eval_df[self.label])
-            evallist = [(deval, 'eval')]
-            if use_early_stop:
-                clf = lgb.train(use_params, dtrain, num_boost_round=params['num_round'], valid_sets=evallist,
-                                early_stopping_rounds=params['early_stopping_rounds'], verbose_eval=verbose_eval)
-            else:
-                clf = lgb.train(use_params, dtrain, num_boost_round=params['num_round'], valid_sets=evallist,
-                                verbose_eval=verbose_eval)
-            train_pred[eval_id] = clf.predict(deval)
-            test_pred += clf.predict(dtest)
-        test_pred = test_pred / k_fold.n_splits
-        return train_pred, test_pred
+            evallist = [dtrain, deval]
+            if use_best_eval:
+                with io.StringIO() as buf, redirect_stdout(buf):
+                    lgb.train(use_params, dtrain, num_round, valid_sets=evallist)
+                    output = buf.getvalue().split("\n")
+                min_error = np.inf
+                min_index = 0
+                for idx in range(len(output) - 1):
+                    if min_error > float(output[idx].split("\t")[2].split(":")[1]):
+                        min_error = float(output[idx].split("\t")[2].split(":")[1])
+                        min_index = idx
+                acc_result.append(min_error)
+                print("The minimum is attained in round %d" % (min_index + 1))
+                clf = lgb.train(use_params, dtrain, min_index + 1, valid_sets=evallist,
+                                verbose_eval=False)
 
+            else:
+                clf = lgb.train(use_params, dtrain, num_round, valid_sets=evallist,
+                                verbose_eval=False)
+            train_pred[eval_id] = clf.predict(eval_df.drop(columns=self.label))
+            test_pred += clf.predict(dtest)
+        test_pred /= k_fold.n_splits
+        return train_pred, test_pred, acc_result
 
 # class ModelFitter:
 #     def __init__(self, default_dict, search_config):
@@ -291,4 +318,4 @@ class LGBFitter(FitterBase):
 #                     for j in range(len(keys)):
 #                         current_best_config[keys[j]] = possible_values[i][j]
 #                 for k, v in current_best_config.items():
-#                     self.optimal_parameter[k] = v
+#
