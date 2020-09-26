@@ -6,3 +6,5 @@ open_competition.egg-info/
 build/
 test
 test/
+runs/
+runs
