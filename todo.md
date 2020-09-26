@@ -6,3 +6,4 @@ This is a to-do list for different part of algorithms.
 
 ## Tabular
 1. Model-fitter check parameter range.
+2. XGBoost DART booster possible warnings. 

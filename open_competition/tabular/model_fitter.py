@@ -25,6 +25,9 @@ use_gpu = torch.cuda.is_available()
 class XGBOpt:
     nthread: hyperopt.pyll.base.Apply = hp.choice('nthread', [cpu_count])
     eval_metric: hyperopt.pyll.base.Apply = hp.choice('eval_metric', ['error'])
+    booster:hyperopt.pyll.base.Apply = hp.choice('booster', ['gbtree', 'dart'])
+    sample_type:hyperopt.pyll.base.Apply = hp.choice('sample_type', ['uniform', 'weighted'])
+    rate_drop:  hyperopt.pyll.base.Apply = hp.uniform('rate_drop', 0, 0.2)
     objective: hyperopt.pyll.base.Apply = hp.choice('objective', ['binary:logistic'])
     max_depth: hyperopt.pyll.base.Apply = hp.choice('max_depth', [4, 5, 6, 7, 8])
     num_round: hyperopt.pyll.base.Apply = hp.choice('num_round', [100])
@@ -32,6 +35,8 @@ class XGBOpt:
     subsample: hyperopt.pyll.base.Apply = hp.uniform('subsample', 0.8, 1)
     colsample_bytree: hyperopt.pyll.base.Apply = hp.uniform('colsample_bytree', 0.3, 1)
     gamma: hyperopt.pyll.base.Apply = hp.choice('gamma', [0, 1, 5])
+    min_child_weight: hyperopt.pyll.base.Apply = hp.uniform('min_child_weight', 0, 10) # TODO: Check upper bound
+    sampling_method: hyperopt.pyll.base.Apply = hp.choice('sampling_method', ['uniform', 'gradient_based'])
 
 
 @dataclass
