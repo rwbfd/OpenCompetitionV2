@@ -15,10 +15,10 @@ from sklearn.metrics import f1_score
 from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 from sklearn.metrics import roc_auc_score
-import numba
+import torch
 
 cpu_count = multiprocessing.cpu_count()
-use_gpu = numba.cuda.is_available()
+use_gpu = torch.cuda.is_available()
 
 @dataclass
 class XGBOpt:

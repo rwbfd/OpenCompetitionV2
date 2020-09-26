@@ -4,4 +4,5 @@ test/
 dist/
 open_competition.egg-info/
 build/
-tho
+test
+test/
