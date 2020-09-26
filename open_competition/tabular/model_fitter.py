@@ -1,23 +1,24 @@
 # coding = 'utf-8'
-from copy import deepcopy
-import itertools
-import math
-from dataclasses import dataclass, asdict
+import io
 import multiprocessing
-from hyperopt import fmin, tpe, hp
+from contextlib import redirect_stdout
+from copy import deepcopy
+from dataclasses import dataclass, asdict
+
 import hyperopt.pyll
-import xgboost as xgb
 import lightgbm as lgb
+import numpy as np
+import xgboost as xgb
+from hyperopt import fmin, tpe, hp
 from sklearn.metrics import accuracy_score
+from sklearn.metrics import f1_score
 from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
-from sklearn.metrics import f1_score
 from sklearn.metrics import roc_auc_score
-import numpy as np
-import io
-from contextlib import redirect_stdout
+import torch
 
 cpu_count = multiprocessing.cpu_count()
+use_gpu = torch.cuda.is_available()
 
 
 @dataclass
@@ -44,6 +45,14 @@ class LGBOpt:
     learning_rate: hyperopt.pyll.base.Apply = hp.uniform('learning_rate', 0.01, 0.1)
     feature_fraction: hyperopt.pyll.base.Apply = hp.uniform('feature_fraction', 0.5, 1.0)
     bagging_fraction: hyperopt.pyll.base.Apply = hp.uniform('bagging_fraction', 0.8, 1.0)
+    device_type: hyperopt.pyll.base.Apply = hp.choice('device_tpye', ['gpu']) if use_gpu else hp.choice('device_type',
+                                                                                                        ['cpu'])
+    boosting: hyperopt.pyll.base.Apply = hp.choice('boosting', ['gbdt', 'dart', 'goss'])
+    extra_trees: hyperopt.pyll.base.Apply = hp.choice('extra_tress', [False, True])
+    lambda_l1: hyperopt.pyll.base.Apply = hp.uniform('lambda_l1', [0, 10])
+    lambda_l2: hyperopt.pyll.base.Apply = hp.uniform('lambda_l2', [0, 10])
+    min_gain_to_split: hyperopt.pyll.base.Apply = hp.uniform('min_gain_to_split', [0, 1])
+    min_data_in_bin = hp.choice('min_data_in_bin', [3, 5, 10, 15, 20, 50])
 
 
 class FitterBase(object):
@@ -196,7 +205,7 @@ class LGBFitter(FitterBase):
                     min_error = float(output[idx].split("\t")[2].split(":")[1])
                     min_index = idx
             print("The minimum is attained in round %d" % (min_index + 1))
-            self.best_round = min_index+1
+            self.best_round = min_index + 1
             return output
         else:
             with io.StringIO() as buf, redirect_stdout(buf):
@@ -213,7 +222,8 @@ class LGBFitter(FitterBase):
             if self.metric == 'auc':
                 y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round)
             else:
-                y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round) > 0.5).astype(int)
+                y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]),
+                                           num_iteration=self.best_round) > 0.5).astype(int)
             return self.get_loss(eval_df[self.label], y_pred)
 
         self.opt_params = fmin(train_impl, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
@@ -230,7 +240,8 @@ class LGBFitter(FitterBase):
                 if self.metric == 'auc':
                     y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round)
                 else:
-                    y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round) > 0.5).astype(int)
+                    y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]),
+                                               num_iteration=self.best_round) > 0.5).astype(int)
                 loss.append(self.get_loss(eval_df[self.label], y_pred))
             return np.mean(loss)
 
@@ -252,7 +263,8 @@ class LGBFitter(FitterBase):
             if self.metric == 'auc':
                 y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round)
             else:
-                y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round) > 0.5).astype(int)
+                y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]),
+                                           num_iteration=self.best_round) > 0.5).astype(int)
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
             test_pred += self.clf.predict(dtest, num_iteration=self.best_round)
         test_pred /= k_fold.n_splits
