@@ -27,8 +27,7 @@ class XGBOpt:
     eval_metric: hyperopt.pyll.base.Apply = hp.choice('eval_metric', ['error'])
     objective: hyperopt.pyll.base.Apply = hp.choice('objective', ['binary:logistic'])
     max_depth: hyperopt.pyll.base.Apply = hp.choice('max_depth', [4, 5, 6, 7, 8])
-    early_stopping_rounds: hyperopt.pyll.base.Apply = hp.choice('early_stopping_rounds', [50])
-    num_round: hyperopt.pyll.base.Apply = hp.choice('num_round', [1000])
+    num_round: hyperopt.pyll.base.Apply = hp.choice('num_round', [100])
     eta: hyperopt.pyll.base.Apply = hp.uniform('eta', 0.01, 0.011)
     subsample: hyperopt.pyll.base.Apply = hp.uniform('subsample', 0.8, 1)
     colsample_bytree: hyperopt.pyll.base.Apply = hp.uniform('colsample_bytree', 0.3, 1)
@@ -49,9 +48,11 @@ class LGBOpt:
                                                                                                         ['cpu'])
     boosting: hyperopt.pyll.base.Apply = hp.choice('boosting', ['gbdt', 'dart', 'goss'])
     extra_trees: hyperopt.pyll.base.Apply = hp.choice('extra_tress', [False, True])
-    lambda_l1: hyperopt.pyll.base.Apply = hp.uniform('lambda_l1', [0, 10])
-    lambda_l2: hyperopt.pyll.base.Apply = hp.uniform('lambda_l2', [0, 10])
-    min_gain_to_split: hyperopt.pyll.base.Apply = hp.uniform('min_gain_to_split', [0, 1])
+    drop_rate: hyperopt.pyll.base.Apply = hp.uniform('drop_rate', 0, 0.2)
+    uniform_drop: hyperopt.pyll.base.Apply = hp.choice('uniform_drop', [True, False])
+    lambda_l1: hyperopt.pyll.base.Apply = hp.uniform('lambda_l1', 0, 10)  # TODO: Check range
+    lambda_l2: hyperopt.pyll.base.Apply = hp.uniform('lambda_l2', 0, 10)  # TODO: Check range
+    min_gain_to_split: hyperopt.pyll.base.Apply = hp.uniform('min_gain_to_split', [0, 1])  # TODO: Check range
     min_data_in_bin = hp.choice('min_data_in_bin', [3, 5, 10, 15, 20, 50])
 
 
@@ -86,91 +87,104 @@ class FitterBase(object):
             return hyperopt.pyll.stochastic.sample(asdict(self.opt))
 
 
-class XgBoostFitter(FitterBase):
-    def __init__(self, label='label', metric='error', opt: XGBOpt = None, max_eval=100):
-        super(XgBoostFitter, self).__init__(label, metric, max_eval)
+class XGBFitter(FitterBase):
+    def __init__(self, label='label', metric='error', opt: LGBOpt = None, max_eval=100):
+        super(XGBFitter, self).__init__(label, metric, max_eval)
         if opt is not None:
             self.opt = opt
         else:
             self.opt = XGBOpt()
+        self.best_round = None
         self.clf = None
 
-    def train(self, train_df, eval_df, params=None, use_early_stop=True, verbose_eval=False):
+    def train(self, train_df, eval_df, params=None, use_best_eval=True):
+        self.best_round = None
         dtrain = xgb.DMatrix(train_df.drop(columns=[self.label]), train_df[self.label])
         deval = xgb.DMatrix(eval_df.drop(columns=[self.label]), eval_df[self.label])
-        evallist = [(deval, 'eval')]
+        evallist = [(dtrain, 'train'), (deval, 'eval')]
         if params is None:
             use_params = deepcopy(self.opt_params)
         else:
             use_params = deepcopy(params)
-        if use_early_stop:
-            self.clf = xgb.train(use_params, dtrain, num_boost_round=params['num_round'], evals=evallist,
-                                 early_stopping_rounds=params['early_stopping_rounds'], verbose_eval=verbose_eval)
-        else:
-            self.clf = xgb.train(use_params, dtrain, num_boost_round=params['num_round'], evals=evallist,
-                                 verbose_eval=verbose_eval)
 
-    def search(self, train_df, eval_df, use_early_stop=True, verbose_eval=False):
+        num_round = use_params.pop('num_round')
+        if use_best_eval:
+            with io.StringIO() as buf, redirect_stdout(buf):
+                self.clf = xgb.train(use_params, dtrain, num_round, evallist)
+                output = buf.getvalue().split("\n")
+            min_error = np.inf
+            min_index = 0
+            for idx in range(len(output) - 1):
+                if min_error > float(output[idx].split("\t")[2].split(":")[1]):
+                    min_error = float(output[idx].split("\t")[2].split(":")[1])
+                    min_index = idx
+            print("The minimum is attained in round %d" % (min_index + 1))
+            self.best_round = min_index + 1
+            return output
+        else:
+            with io.StringIO() as buf, redirect_stdout(buf):
+                self.clf = xgb.train(use_params, dtrain, num_round, evallist)
+                output = buf.getvalue().split("\n")
+                self.best_round = num_round
+            return output
+
+    def search(self, train_df, eval_df, use_best_eval=True):
         self.opt_params = dict()
-        deval = xgb.DMatrix(eval_df.drop(columns=[self.label]))
 
         def train_impl(params):
-            self.train(train_df, eval_df, params, use_early_stop=use_early_stop, verbose_eval=verbose_eval)
+            self.train(train_df, eval_df, params, use_best_eval)
             if self.metric == 'auc':
-                y_pred = self.clf.predict(deval)
+                y_pred = self.clf.predict(xgb.DMatrix(eval_df.drop(columns=[self.label])), ntree_limit=self.best_round)
             else:
-                y_pred = (self.clf.predict(deval) > 0.5).astype(int)
+                y_pred = (self.clf.predict(xgb.DMatrix(eval_df.drop(columns=[self.label])),
+                                           ntree_limit=self.best_round) > 0.5).astype(int)
             return self.get_loss(eval_df[self.label], y_pred)
 
         self.opt_params = fmin(train_impl, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
 
-    def search_k_fold(self, k_fold, data, use_early_stop=True, verbose_eval=False):
+    def search_k_fold(self, k_fold, data, use_best_eval=True):
         self.opt_params = dict()
 
         def train_impl_nfold(params):
             loss = list()
-            for train_id, eval_id in k_fold.spilt(data):
+            for train_id, eval_id in k_fold.split(data):
                 train_df = data.loc[train_id]
                 eval_df = data.loc[eval_id]
-                self.train(train_df, eval_df, params, use_early_stop=use_early_stop, verbose_eval=verbose_eval)
-                deval = xgb.DMatrix(eval_df.drop(columns=[self.label]))
+                self.train(train_df, eval_df, params, use_best_eval)
                 if self.metric == 'auc':
-                    y_pred = self.clf.predict(deval)
+                    y_pred = self.clf.predict(xgb.DMatrix(eval_df.drop(columns=[self.label])),
+                                              ntree_limit=self.best_round)
                 else:
-                    y_pred = (self.clf.predict(deval) > 0.5).astype(int)
+                    y_pred = (self.clf.predict(xgb.DMatrix(eval_df.drop(columns=[self.label])),
+                                               ntree_limit=self.best_round) > 0.5).astype(int)
                 loss.append(self.get_loss(eval_df[self.label], y_pred))
             return np.mean(loss)
 
         self.opt_params = fmin(train_impl_nfold, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
 
-    def train_k_fold(self, k_fold, train_data, test_data, params=None, use_early_stop=True,
-                     verbose_eval=False, drop_test_y=True):
-        if params is not None:
-            use_params = deepcopy(params)
-        else:
-            use_params = deepcopy(self.opt_params)
-        train_pred = np.ndarray([np.NaN for x in range(train_data.shape[0])])
-        test_pred = np.ndarray([0 for x in range(test_data.shape[0])])
+    def train_k_fold(self, k_fold, train_data, test_data, params=None, drop_test_y=True, use_best_eval=True):
+        acc_result = list()
+        train_pred = np.empty(train_data.shape[0])
+        test_pred = np.empty(test_data.shape[0])
         if drop_test_y:
-            dtest = xgb.DMatrix(test_data.drop(columns=self.label))
+            dtest = test_data.drop(columns=self.label)
         else:
-            dtest = xgb.DMatrix(test_data)
+            dtest = test_data
         for train_id, eval_id in k_fold.split(train_data):
             train_df = train_data.loc[train_id]
             eval_df = train_data.loc[eval_id]
-            dtrain = xgb.DMatrix(train_df.drop(columns=[self.label]), train_df[self.label])
-            deval = xgb.DMatrix(eval_df.drop(columns=[self.label]), eval_df[self.label])
-            evallist = [(deval, 'eval')]
-            if use_early_stop:
-                clf = xgb.train(use_params, dtrain, num_boost_round=params['num_round'],
-                                early_stopping_rounds=params['early_stopping_rounds'], verbose_eval=verbose_eval)
+            self.train(train_df, eval_df, params, use_best_eval)
+            train_pred[eval_id] = self.clf.predict(xgb.DMatrix(eval_df.drop(columns=self.label)),
+                                                   ntree_limit=self.best_round)
+            if self.metric == 'auc':
+                y_pred = self.clf.predict(xgb.DMatrix(eval_df.drop(columns=[self.label])),
+                                          ntree_limit=self.best_round)
             else:
-                clf = xgb.train(use_params, dtrain, num_boost_round=params['num_round'], evals=evallist,
-                                verbose_eval=verbose_eval)
-            train_pred[eval_id] = clf.predict(deval)
-            test_pred += clf.predict(dtest)
-        test_pred = test_pred / k_fold.n_splits
-        return train_pred, test_pred
+                y_pred = (self.clf.predict(xgb.DMatrix(eval_df.drop(columns=[self.label])),
+                                           ntree_limit=self.best_round) > 0.5).astype(int)
+            acc_result.append(self.get_loss(eval_df[self.label], y_pred))
+            test_pred += self.clf.predict(xgb.DMatrix(dtest), ntree_limit=self.best_round)
+        test_pred /= k_fold.n_splits
 
 
 class LGBFitter(FitterBase):
@@ -269,48 +283,3 @@ class LGBFitter(FitterBase):
             test_pred += self.clf.predict(dtest, num_iteration=self.best_round)
         test_pred /= k_fold.n_splits
         return train_pred, test_pred, acc_result
-
-# class ModelFitter:
-#     def __init__(self, default_dict, search_config):
-#         """
-#
-#         :param default_dict:
-#         :param search_config:
-#         """
-#         self.default_dict = default_dict
-#         self.search_config = search_config
-#         self.optimal_parameter = dict()
-#         self.current_parameter = dict()
-#
-#     def train(self):
-#         raise NotImplementedError()
-#
-#     def eval(self):
-#         raise NotImplementedError()
-#
-#     def search(self):
-#         """
-#
-#         :return:
-#         """
-#         self.current_parameter = deepcopy(self.default_dict)
-#
-#         for search_stage in self.search_config:
-#             for k, v in self.optimal_parameter.items():
-#                 self.current_parameter[k] = v
-#             keys = sorted(search_stage)
-#             possible_values = list(itertools.product(*[search_stage[key] for key in keys]))
-#             best_score = -math.inf
-#             for i in range(len(possible_values)):
-#                 current_best_config = dict()
-#                 for j in range(len(keys)):
-#                     if j not in self.optimal_parameter.keys():
-#                         self.current_parameter[keys[j]] = possible_values[i][j]
-#                 self.train()
-#                 score = self.eval()
-#                 if score > best_score:
-#                     best_score = score
-#                     for j in range(len(keys)):
-#                         current_best_config[keys[j]] = possible_values[i][j]
-#                 for k, v in current_best_config.items():
-#
