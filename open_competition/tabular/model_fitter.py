@@ -172,6 +172,7 @@ class LGBFitter(FitterBase):
         else:
             self.opt = LGBOpt()
         self.best_round = None
+        self.clf = None
 
     def train(self, train_df, eval_df, params=None, use_best_eval=True):
         self.best_round = None
@@ -186,7 +187,7 @@ class LGBFitter(FitterBase):
         num_round = use_params.pop('num_round')
         if use_best_eval:
             with io.StringIO() as buf, redirect_stdout(buf):
-                clf = lgb.train(use_params, dtrain, num_round, valid_sets=evallist)
+                self.clf = lgb.train(use_params, dtrain, num_round, valid_sets=evallist)
                 output = buf.getvalue().split("\n")
             min_error = np.inf
             min_index = 0
@@ -237,11 +238,6 @@ class LGBFitter(FitterBase):
 
     def train_k_fold(self, k_fold, train_data, test_data, params=None, drop_test_y=True, use_best_eval=True):
         acc_result = list()
-        if params is not None:
-            use_params = params
-        else:
-            use_params = self.opt_params
-        num_round = use_params.pop('num_round')
         train_pred = np.empty(train_data.shape[0])
         test_pred = np.empty(test_data.shape[0])
         if drop_test_y:
@@ -251,29 +247,14 @@ class LGBFitter(FitterBase):
         for train_id, eval_id in k_fold.split(train_data):
             train_df = train_data.loc[train_id]
             eval_df = train_data.loc[eval_id]
-            dtrain = lgb.Dataset(train_df.drop(columns=[self.label]), train_df[self.label])
-            deval = lgb.Dataset(eval_df.drop(columns=[self.label]), eval_df[self.label])
-            evallist = [dtrain, deval]
-            if use_best_eval:
-                with io.StringIO() as buf, redirect_stdout(buf):
-                    clf = lgb.train(use_params, dtrain, num_round, valid_sets=evallist)
-                    output = buf.getvalue().split("\n")
-                min_error = np.inf
-                min_index = 0
-                for idx in range(len(output) - 1):
-                    if min_error > float(output[idx].split("\t")[2].split(":")[1]):
-                        min_error = float(output[idx].split("\t")[2].split(":")[1])
-                        min_index = idx
-                acc_result.append(min_error)
-                print("The minimum is attained in round %d" % (min_index + 1))
-                best_round = min_index + 1
-
+            self.train(train_df, eval_df, params, use_best_eval)
+            train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label), num_iteration=self.best_round)
+            if self.metric == 'auc':
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round)
             else:
-                clf = lgb.train(use_params, dtrain, num_round, valid_sets=evallist,
-                                verbose_eval=False)
-                best_round = num_round
-            train_pred[eval_id] = clf.predict(eval_df.drop(columns=self.label), num_iteration=best_round)
-            test_pred += clf.predict(dtest, num_iteration=best_round)
+                y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round) > 0.5).astype(int)
+            acc_result.append(self.get_loss(eval_df[self.label], y_pred))
+            test_pred += self.clf.predict(dtest, num_iteration=self.best_round)
         test_pred /= k_fold.n_splits
         return train_pred, test_pred, acc_result
 
