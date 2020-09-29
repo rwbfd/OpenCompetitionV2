@@ -6,11 +6,14 @@ from copy import deepcopy
 from dataclasses import dataclass, asdict
 
 import hyperopt.pyll
+from hyperopt import fmin, tpe, hp
+
 import lightgbm as lgb
-import numpy as np
 import xgboost as xgb
 import catboost as cat
-from hyperopt import fmin, tpe, hp
+from sklearn.ensemble import RandomForestClassifier
+from sklearn.linear_model import LogisticRegression
+
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import f1_score
 from sklearn.metrics import precision_score
