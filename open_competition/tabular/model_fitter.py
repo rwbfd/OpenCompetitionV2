@@ -61,31 +61,24 @@ class LGBOpt:
     uniform_drop: hyperopt.pyll.base.Apply = hp.choice('uniform_drop', [True, False])
     lambda_l1: hyperopt.pyll.base.Apply = hp.uniform('lambda_l1', 0, 10)  # TODO: Check range
     lambda_l2: hyperopt.pyll.base.Apply = hp.uniform('lambda_l2', 0, 10)  # TODO: Check range
-    min_gain_to_split: hyperopt.pyll.base.Apply = hp.uniform('min_gain_to_split', [0, 1])  # TODO: Check range
+    min_gain_to_split: hyperopt.pyll.base.Apply = hp.uniform('min_gain_to_split', 0, 1)  # TODO: Check range
     min_data_in_bin = hp.choice('min_data_in_bin', [3, 5, 10, 15, 20, 50])
 
 
 @dataclass
 class CATOpt:
     thread_count: hyperopt.pyll.base.Apply = hp.choice('thread_count', [cpu_count])
-    n_estimators: hyperopt.pyll.base.Apply = hp.choice('n_estimators', [1000])
     num_round: hyperopt.pyll.base.Apply = hp.choice('num_round', [100])
     objective: hyperopt.pyll.base.Apply = hp.choice('objective', ['CrossEntropy'])
-    custom_metric: hyperopt.pyll.base.Apply = hp.choice('custom_metric', ['RMSE', 'Logloss', 'MAE', 'CrossEntropy',
-                                                                          'Recall', 'Precision', 'F1', 'Accuracy',
-                                                                          'AUC', 'R2'])
-    eval_metric: hyperopt.pyll.base.Apply = hp.choice('eval_metric', ['RMSE', 'Logloss', 'MAE', 'CrossEntropy',
-                                                                      'Recall', 'Precision', 'F1', 'Accuracy',
-                                                                      'AUC', 'R2'])
+    custom_metric: hyperopt.pyll.base.Apply = hp.choice('custom_metric', ['Logloss'])
+    eval_metric: hyperopt.pyll.base.Apply = hp.choice('eval_metric', ['Logloss'])
     learning_rate: hyperopt.pyll.base.Apply = hp.uniform('learning_rate', 0.01, 0.1)
-    l2_leaf_reg: hyperopt.pyll.base.Apply = hp.uniform('l2_leaf_reg', [0, 10])  # TODO: Check range
+    l2_leaf_reg: hyperopt.pyll.base.Apply = hp.uniform('l2_leaf_reg', 0, 10)  # TODO: Check range
     bootstrap_type: hyperopt.pyll.base.Apply = hp.choice('bootstrap_type', ['Bayesian', 'Bernoulli', 'MVS'])
-    bagging_temperature: hyperopt.pyll.base.Apply = hp.uniform('bagging_temperature', [0, 10]) # TODO: Check range
-    subsample: hyperopt.pyll.base.Apply = hp.choice('subsample', ['Poisson', 'Bernoulli', 'MVS'])
     nan_mode: hyperopt.pyll.base.Apply = hp.choice('nan_mode', ['Forbidden', 'Min', 'Max'])
     leaf_estimation_method: hyperopt.pyll.base.Apply = hp.choice('leaf_estimation_method', ['Newton', 'Gradient'])
-    depth: hyperopt.pyll.base.Apply = hp.uniform('depth', [0, 10])  # TODO: Check range
-    one_hot_max_size: hyperopt.pyll.base.Apply = hp.uniform('one_hot_max_size', [0, 10])  # TODO: Check range
+    depth: hyperopt.pyll.base.Apply = hp.choice('depth', [0, 1, 2, 3, 4, 5])  # TODO: Check range
+    one_hot_max_size: hyperopt.pyll.base.Apply = hp.choice('one_hot_max_size', [0, 1, 2, 3, 4, 5])  # TODO: Check range
     max_bin: hyperopt.pyll.base.Apply = hp.choice('max_bin', [3, 5, 10, 15, 20, 50, 100, 500])
 
 
@@ -382,10 +375,10 @@ class CATFitter(FitterBase):
         def train_impl(params):
             self.train(train_df, eval_df, params, use_best_eval)
             if self.metric == 'auc':
-                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round)
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), ntree_start=self.best_round)
             else:
                 y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]),
-                                           num_iteration=self.best_round) > 0.5).astype(int)
+                                           ntree_start=self.best_round) > 0.5).astype(int)
             return self.get_loss(eval_df[self.label], y_pred)
 
         self.opt_params = fmin(train_impl, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
