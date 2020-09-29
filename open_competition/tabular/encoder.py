@@ -13,6 +13,7 @@ import xgboost as xgb
 import lightgbm as lgb
 
 from sklearn.decomposition import PCA
+from sklearn import preprocessing
 
 cpu_count = multiprocessing.cpu_count()
 
@@ -28,6 +29,25 @@ class EncoderBase(object):
         for _, _, target, _ in self.trans_ls:
             if target not in df.columns:
                 raise Exception("The columns to be transformed are not in the dataframe.")
+
+
+class LabelEncoder(EncoderBase):
+    def __init__(self):
+        super(LabelEncoder, self).__init__()
+
+    def fit(self, df, targets):
+        self.reset()
+        for target in targets:
+            unique = df[target].unique()
+            index = range(len(unique))
+            mapping = dict(zip(unique, index))
+            self.trans_ls.append((target, mapping))
+
+    def transform(self, df):
+        df_copy = df.copy(deep=True)
+        for name, mapping in self.trans_ls:
+            df_copy[name] = df_copy[name].map(lambda x: mapping[x])
+        return df_copy
 
 
 class CategoryEncoder(EncoderBase):

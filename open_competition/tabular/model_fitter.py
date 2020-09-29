@@ -65,19 +65,15 @@ class LGBOpt:
 @dataclass
 class CATOpt:
     thread_count: hyperopt.pyll.base.Apply = hp.choice('thread_count', [cpu_count])
-    n_estimators: hyperopt.pyll.base.Apply = hp.choice('n_estimators', [1000])
     num_round: hyperopt.pyll.base.Apply = hp.choice('num_round', [100])
     objective: hyperopt.pyll.base.Apply = hp.choice('objective', ['CrossEntropy'])
     eval_metric: hyperopt.pyll.base.Apply = hp.choice('eval_metric', ['Accuracy'])
     learning_rate: hyperopt.pyll.base.Apply = hp.uniform('learning_rate', 0.01, 0.1)
-    l2_leaf_reg: hyperopt.pyll.base.Apply = hp.uniform('l2_leaf_reg', [0, 10])  # TODO: Check range
+    l2_leaf_reg: hyperopt.pyll.base.Apply = hp.uniform('l2_leaf_reg', 0, 10)  # TODO: Check range
     bootstrap_type: hyperopt.pyll.base.Apply = hp.choice('bootstrap_type', ['Bayesian', 'Bernoulli', 'MVS'])
-    bagging_temperature: hyperopt.pyll.base.Apply = hp.uniform('bagging_temperature', [0, 10])  # TODO: Check range
-    subsample: hyperopt.pyll.base.Apply = hp.choice('subsample', ['Poisson', 'Bernoulli', 'MVS'])
     nan_mode: hyperopt.pyll.base.Apply = hp.choice('nan_mode', ['Forbidden', 'Min', 'Max'])
     leaf_estimation_method: hyperopt.pyll.base.Apply = hp.choice('leaf_estimation_method', ['Newton', 'Gradient'])
-    depth: hyperopt.pyll.base.Apply = hp.uniform('depth', [0, 10])  # TODO: Check range
-    one_hot_max_size: hyperopt.pyll.base.Apply = hp.uniform('one_hot_max_size', [0, 10])  # TODO: Check range
+    depth: hyperopt.pyll.base.Apply = hp.choice('depth', [2, 3, 4, 5, 6, 7, 8])  # TODO: Check range
     max_bin: hyperopt.pyll.base.Apply = hp.choice('max_bin', [3, 5, 10, 15, 20, 50, 100, 500])
 
 
@@ -351,11 +347,11 @@ class CATFitter(FitterBase):
             min_index = 0
 
             for idx in range(1, num_round + 1):
-                if len(output[idx].split("\t")) == 3:
+                if len(output[idx].split("\t")) == 6:
                     temp = 1 - float(output[idx].split("\t")[2].split(":")[1])
                     if min_error > temp:
                         min_error = temp
-                        min_index = int(output[idx].split("\t")[0][1:-1])
+                        min_index = int(output[idx].split("\t")[0][:-1])
             print("The minimum is attained in round %d" % (min_index + 1))
             self.best_round = min_index + 1
             return output
@@ -376,10 +372,11 @@ class CATFitter(FitterBase):
         def train_impl(params):
             self.train(train_df, eval_df, params, use_best_eval)
             if self.metric == 'auc':
-                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round)
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]),
+                                          ntree_end=self.best_round -1 )
             else:
                 y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]),
-                                           num_iteration=self.best_round) > 0.5).astype(int)
+                                           ntree_end=self.best_round -1) > 0.5).astype(int)
             return self.get_loss(eval_df[self.label], y_pred)
 
         self.opt_params = fmin(train_impl, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
@@ -394,10 +391,12 @@ class CATFitter(FitterBase):
                 eval_df = data.loc[eval_id]
                 self.train(train_df, eval_df, params, use_best_eval)
                 if self.metric == 'auc':
-                    y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round)
+                    y_pred = self.clf.predict(eval_df.drop(columns=[self.label]),
+                                              ntree_end=self.best_round - 1)
                 else:
                     y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]),
-                                               num_iteration=self.best_round) > 0.5).astype(int)
+
+                                               ntree_end=self.best_round -1 ) > 0.5).astype(int)
                 loss.append(self.get_loss(eval_df[self.label], y_pred))
             return np.mean(loss)
 
@@ -415,33 +414,15 @@ class CATFitter(FitterBase):
             train_df = train_data.loc[train_id]
             eval_df = train_data.loc[eval_id]
             self.train(train_df, eval_df, params, use_best_eval)
-            train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label), num_iteration=self.best_round)
+            train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label),
+                                                   ntree_end=self.best_round-1)
             if self.metric == 'auc':
-                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round)
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), ntree_end=self.best_round-1)
             else:
-                y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]),
-                                           num_iteration=self.best_round) > 0.5).astype(int)
+                y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]), ntree_end=self.best_round-1) > 0.5).astype(
+                    int)
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
-            test_pred += self.clf.predict(dtest, num_iteration=self.best_round)
+            test_pred += self.clf.predict(dtest,
+                                          ntree_end=self.best_round-1)
         test_pred /= k_fold.n_splits
         return train_pred, test_pred, acc_result
-
-
-class NGFitter(FitterBase):
-    pass  # TODO: need to check the parameter
-
-
-class RFFitter(FitterBase):
-    pass
-
-
-class SVMFitter(FitterBase):
-    pass
-
-
-class LRFitter(FitterBase):
-    pass
-
-
-class KNNFitter(FitterBase):
-    pass
