@@ -58,7 +58,7 @@ class LGBOpt:
     uniform_drop: hyperopt.pyll.base.Apply = hp.choice('uniform_drop', [True, False])
     lambda_l1: hyperopt.pyll.base.Apply = hp.uniform('lambda_l1', 0, 10)  # TODO: Check range
     lambda_l2: hyperopt.pyll.base.Apply = hp.uniform('lambda_l2', 0, 10)  # TODO: Check range
-    min_gain_to_split: hyperopt.pyll.base.Apply = hp.uniform('min_gain_to_split', [0, 1])  # TODO: Check range
+    min_gain_to_split: hyperopt.pyll.base.Apply = hp.uniform('min_gain_to_split', 0, 1)  # TODO: Check range
     min_data_in_bin = hp.choice('min_data_in_bin', [3, 5, 10, 15, 20, 50])
 
 
