@@ -356,7 +356,6 @@ class CATFitter(FitterBase):
 
             for idx in range(1, num_round+1):
                 temp = float(output[idx].split("\t")[2].split(":")[1])
-                print(temp)
                 if min_error > temp:
                     min_error = temp
                     min_index = idx
