@@ -373,10 +373,10 @@ class CATFitter(FitterBase):
             self.train(train_df, eval_df, params, use_best_eval)
             if self.metric == 'auc':
                 y_pred = self.clf.predict(eval_df.drop(columns=[self.label]),
-                                          ntree_end=self.best_round -1 )
+                                          ntree_end=self.best_round - 1)
             else:
                 y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]),
-                                           ntree_end=self.best_round -1) > 0.5).astype(int)
+                                           ntree_end=self.best_round - 1) > 0.5).astype(int)
             return self.get_loss(eval_df[self.label], y_pred)
 
         self.opt_params = fmin(train_impl, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
@@ -396,7 +396,7 @@ class CATFitter(FitterBase):
                 else:
                     y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]),
 
-                                               ntree_end=self.best_round -1 ) > 0.5).astype(int)
+                                               ntree_end=self.best_round - 1) > 0.5).astype(int)
                 loss.append(self.get_loss(eval_df[self.label], y_pred))
             return np.mean(loss)
 
@@ -415,14 +415,15 @@ class CATFitter(FitterBase):
             eval_df = train_data.loc[eval_id]
             self.train(train_df, eval_df, params, use_best_eval)
             train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label),
-                                                   ntree_end=self.best_round-1)
+                                                   ntree_end=self.best_round - 1)
             if self.metric == 'auc':
-                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), ntree_end=self.best_round-1)
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), ntree_end=self.best_round - 1)
             else:
-                y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]), ntree_end=self.best_round-1) > 0.5).astype(
+                y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]),
+                                           ntree_end=self.best_round - 1) > 0.5).astype(
                     int)
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
             test_pred += self.clf.predict(dtest,
-                                          ntree_end=self.best_round-1)
+                                          ntree_end=self.best_round - 1)
         test_pred /= k_fold.n_splits
         return train_pred, test_pred, acc_result
