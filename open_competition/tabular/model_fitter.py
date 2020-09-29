@@ -337,18 +337,16 @@ class CATFitter(FitterBase):
         self.best_round = None
         dtrain = cat.Pool(data=train_df.drop(columns=[self.label]), label=train_df[self.label])
         deval = cat.Pool(data=eval_df.drop(columns=[self.label]), label=eval_df[self.label])
-        evallist = [dtrain, deval]
         if params is None:
             use_params = deepcopy(self.opt_params)
         else:
             use_params = deepcopy(params)
-        print(use_params)
         num_round = use_params.pop('num_round')
         if use_best_eval:
             with io.StringIO() as buf, redirect_stdout(buf):
                 self.clf = cat.train(params=use_params,
                                      pool=dtrain,
-                                     evals=evallist,
+                                     evals=deval,
                                      num_boost_round=num_round
                                      )
 
@@ -357,8 +355,8 @@ class CATFitter(FitterBase):
             min_index = 0
 
             for idx in range(1, num_round+1):
-                print(output[idx])
                 temp = float(output[idx].split("\t")[2].split(":")[1])
+                print(temp)
                 if min_error > temp:
                     min_error = temp
                     min_index = idx
@@ -369,7 +367,7 @@ class CATFitter(FitterBase):
             with io.StringIO() as buf, redirect_stdout(buf):
                 self.clf = cat.train(params=use_params,
                                      pool=dtrain,
-                                     evals=evallist,
+                                     evals=deval,
                                      num_boost_round=num_round
                                      )
                 output = buf.getvalue().split("\n")
