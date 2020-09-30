@@ -530,7 +530,7 @@ class KNNFitter(FitterBase):
             use_params = deepcopy(self.opt_params)
         else:
             use_params = deepcopy(params)
-        self.clf = LogisticRegression(**use_params)
+        self.clf = KNeighborsClassifier(**use_params)
         self.clf.fit(X=x_train, y=y_train)
         preds = self.clf.predict(X=x_eval)
         output = self.get_loss(y_pred=preds, y=y_eval)
