@@ -8,11 +8,14 @@ from dataclasses import dataclass, asdict
 import hyperopt.pyll
 from hyperopt import fmin, tpe, hp
 
+import numpy as np
+
 import lightgbm as lgb
 import xgboost as xgb
 import catboost as cat
-from sklearn.ensemble import RandomForestClassifier
+
 from sklearn.linear_model import LogisticRegression
+from sklearn.neighbors import KNeighborsClassifier
 
 from sklearn.metrics import accuracy_score
 from sklearn.metrics import f1_score
@@ -82,12 +85,21 @@ class CATOpt:
     max_bin: hyperopt.pyll.base.Apply = hp.choice('max_bin', [3, 5, 10, 15, 20, 50, 100, 500])
 
 
-
-
+@dataclass
+class LROpt:
+    penalty: hyperopt.pyll.base.Apply = hp.choice('penalty', ['l2', 'none'])
+    solver: hyperopt.pyll.base.Apply = hp.choice('solver', ['newton-cg', 'lbfgs', 'sag', 'saga'])
+    C: hyperopt.pyll.base.Apply = hp.uniform('C', 0.5, 2)
+    intercept_scaling: hyperopt.pyll.base.Apply = hp.uniform('intercept_scaling', 0.5, 2)
+    class_weight: hyperopt.pyll.base.Apply = hp.choice('class_weight', ['balanced'])
+    max_iter: hyperopt.pyll.base.Apply = hp.choice('max_iter', [100, 200, 500, 1000])
 
 @dataclass
-class NGOpt:
-    pass
+class KNNOpt:
+    n_neighbors: hyperopt.pyll.base.Apply = hp.choice('n_neighbors', [2])
+    leaf_size: hyperopt.pyll.base.Apply = hp.choice('leaf_size', [20, 30, 40])
+    p: hyperopt.pyll.base.Apply = hp.choice('p', [1, 2, 3])
+
 
 
 class FitterBase(object):
@@ -325,7 +337,7 @@ class CATFitter(FitterBase):
         if opt is not None:
             self.opt = opt
         else:
-            self.opt = CATOpt()
+            self.opt = LROpt()
         self.best_round = None
         self.clf = None
 
@@ -340,17 +352,13 @@ class CATFitter(FitterBase):
         num_round = use_params.pop('num_round')
         if use_best_eval:
             with io.StringIO() as buf, redirect_stdout(buf):
-                self.clf = cat.train(params=use_params,
-                                     pool=dtrain,
-                                     evals=deval,
-                                     num_boost_round=num_round
-                                     )
+                self.clf =
 
                 output = buf.getvalue().split("\n")
             min_error = np.inf
             min_index = 0
 
-            for idx in range(1, num_round+1):
+            for idx in range(1, num_round + 1):
                 temp = float(output[idx].split("\t")[2].split(":")[1])
                 if min_error > temp:
                     min_error = temp
@@ -426,19 +434,159 @@ class CATFitter(FitterBase):
         return train_pred, test_pred, acc_result
 
 
-class NGFitter(FitterBase):
-    pass  # TODO: need to check the parameter
-
-
-class RFFitter(FitterBase):
-    pass
-
-class SVMFitter(FitterBase):
-    pass
-
 class LRFitter(FitterBase):
-    pass
+    def __init__(self, label='label', metric='error', opt: LROpt = None, max_eval=100):
+        super(LRFitter, self).__init__(label, metric, max_eval)
+        if opt is not None:
+            self.opt = opt
+        else:
+            self.opt = LROpt()
+        self.clf = None
+
+    def train(self, train_df, eval_df, params=None):
+        x_train, y_train, x_eval, y_eval = train_df.drop(columns=[self.label]), train_df[self.label], \
+                                           eval_df.drop(columns=[self.label]), eval_df[self.label],
+
+        if params is None:
+            use_params = deepcopy(self.opt_params)
+        else:
+            use_params = deepcopy(params)
+        self.clf = LogisticRegression(**use_params)
+        self.clf.fit(X=x_train, y=y_train)
+        preds = self.clf.predict(X=x_eval)
+        output = self.get_loss(y_pred=preds, y=y_eval)
+
+        return output
+
+    def search(self, train_df, eval_df):
+        self.opt_params = dict()
+
+        def train_impl(params):
+            self.train(train_df, eval_df, params)
+            if self.metric == 'auc':
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
+            else:
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label])).astype(int)
+
+            return self.get_loss(eval_df[self.label], y_pred)
+
+        self.opt_params = fmin(train_impl, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
+
+    def search_k_fold(self, k_fold, data):
+        self.opt_params = dict()
+
+        def train_impl_nfold(params):
+            loss = list()
+            for train_id, eval_id in k_fold.split(data):
+                train_df = data.loc[train_id]
+                eval_df = data.loc[eval_id]
+                self.train(train_df, eval_df, params)
+                if self.metric == 'auc':
+                    y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
+                else:
+                    y_pred = self.clf.predict(eval_df.drop(columns=[self.label])).astype(int)
+                loss.append(self.get_loss(eval_df[self.label], y_pred))
+            return np.mean(loss)
+
+        self.opt_params = fmin(train_impl_nfold, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
+
+    def train_k_fold(self, k_fold, train_data, test_data, params=None, drop_test_y=True):
+        acc_result = list()
+        train_pred = np.empty(train_data.shape[0])
+        test_pred = np.empty(test_data.shape[0])
+        if drop_test_y:
+            dtest = test_data.drop(columns=self.label)
+        else:
+            dtest = test_data
+        for train_id, eval_id in k_fold.split(train_data):
+            train_df = train_data.loc[train_id]
+            eval_df = train_data.loc[eval_id]
+            self.train(train_df, eval_df, params)
+            train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label))
+            if self.metric == 'auc':
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
+            else:
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label])).astype(int)
+
+            acc_result.append(self.get_loss(eval_df[self.label], y_pred))
+            test_pred += self.clf.predict(dtest)
+        test_pred /= k_fold.n_splits
+
 
 class KNNFitter(FitterBase):
-    pass
+    def __init__(self, label='label', metric='error', opt: KNNOpt = None, max_eval=100):
+        super(KNNFitter, self).__init__(label, metric, max_eval)
+        if opt is not None:
+            self.opt = opt
+        else:
+            self.opt = KNNOpt()
+        self.clf = None
 
+    def train(self, train_df, eval_df, params=None):
+        x_train, y_train, x_eval, y_eval = train_df.drop(columns=[self.label]), train_df[self.label], \
+                                           eval_df.drop(columns=[self.label]), eval_df[self.label],
+
+        if params is None:
+            use_params = deepcopy(self.opt_params)
+        else:
+            use_params = deepcopy(params)
+        self.clf = LogisticRegression(**use_params)
+        self.clf.fit(X=x_train, y=y_train)
+        preds = self.clf.predict(X=x_eval)
+        output = self.get_loss(y_pred=preds, y=y_eval)
+
+        return output
+
+    def search(self, train_df, eval_df):
+        self.opt_params = dict()
+
+        def train_impl(params):
+            self.train(train_df, eval_df, params)
+            if self.metric == 'auc':
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
+            else:
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label])).astype(int)
+
+            return self.get_loss(eval_df[self.label], y_pred)
+
+        self.opt_params = fmin(train_impl, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
+
+    def search_k_fold(self, k_fold, data):
+        self.opt_params = dict()
+
+        def train_impl_nfold(params):
+            loss = list()
+            for train_id, eval_id in k_fold.split(data):
+                train_df = data.loc[train_id]
+                eval_df = data.loc[eval_id]
+                self.train(train_df, eval_df, params)
+                if self.metric == 'auc':
+                    y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
+                else:
+                    y_pred = self.clf.predict(eval_df.drop(columns=[self.label])).astype(int)
+                loss.append(self.get_loss(eval_df[self.label], y_pred))
+            return np.mean(loss)
+
+        self.opt_params = fmin(train_impl_nfold, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
+
+    def train_k_fold(self, k_fold, train_data, test_data, params=None, drop_test_y=True):
+        acc_result = list()
+        train_pred = np.empty(train_data.shape[0])
+        test_pred = np.empty(test_data.shape[0])
+        if drop_test_y:
+            dtest = test_data.drop(columns=self.label)
+        else:
+            dtest = test_data
+        for train_id, eval_id in k_fold.split(train_data):
+            train_df = train_data.loc[train_id]
+            eval_df = train_data.loc[eval_id]
+            self.train(train_df, eval_df, params)
+            train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label))
+            if self.metric == 'auc':
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
+            else:
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label])).astype(int)
+
+            acc_result.append(self.get_loss(eval_df[self.label], y_pred))
+            test_pred += self.clf.predict(dtest)
+        test_pred /= k_fold.n_splits
