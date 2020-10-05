@@ -1,2 +1,2 @@
-*.eval_
-*.eval_ex
+*.eval_.py
+*.eval_ex.ipynb
