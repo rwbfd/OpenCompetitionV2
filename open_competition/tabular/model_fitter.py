@@ -17,6 +17,8 @@ from sklearn.metrics import f1_score
 from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 from sklearn.metrics import roc_auc_score
+from sklearn.svm import SVC
+from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 import torch
 
 cpu_count = multiprocessing.cpu_count()
@@ -85,12 +87,28 @@ class LROpt:
     max_iter: any = hp.choice('max_iter', [1000])
     solver: any = hp.choice('solver', ['lbfgs'])
 
+
 @dataclass
 class KNNOpt:
     n_neighbors: any = hp.choice('n_neighbors', [2, 5, 10])
     weights: any = hp.choice('weights', ['uniform', 'distance'])
     leaf_size: any = hp.choice('leaf_size', [20, 25, 30, 35, 40, 45, 50])
     p: any = hp.uniform('p', 1, 2)
+
+
+@dataclass
+class SVMOpt:
+    C: any = hp.uniform('C', 0, 10)
+    kernel: any = hp.choice('kernel', ['rbf', 'poly', 'sigmoid'])
+    gamma: any = hp.choice('gamma', ['scale', 'auto'])
+    probability: any = hp.choice('probability', [True])
+
+@dataclass
+class RFOpt:
+    n_estimators: any = hp.choice('n_estimators', [1000])
+    criterion: any = hp.choice('criterion', ['gini', 'entropy'])
+    max_depth: any = hp.choice('max_depth', [3])
+    max_features : any = hp.uniform('max_features', 0.6, 1.0)
 
 
 class FitterBase(object):
@@ -599,3 +617,81 @@ class KNNFitter(FitterBase):
         test_pred /= k_fold.n_splits
         return train_pred, test_pred, acc_result
 
+
+class SVMFitter(FitterBase):
+    def __init__(self, label='label', metric='error', opt: SVMOpt = None, max_eval=100):
+        super(SVMFitter, self).__init__(label, metric, max_eval)
+        if opt is not None:
+            self.opt = opt
+        else:
+            self.opt = SVMOpt()
+        self.clf = None
+
+    def train(self, train_df, eval_df, params=None):
+        x_train, y_train, x_eval, y_eval = train_df.drop(columns=[self.label]), train_df[self.label], \
+                                           eval_df.drop(columns=[self.label]), eval_df[self.label],
+        if params is None:
+            use_params = deepcopy(self.opt_params)
+        else:
+            use_params = deepcopy(params)
+        self.clf = SVC(**use_params)
+        self.clf.fit(X=x_train, y=y_train)
+        preds = self.clf.predict(X=x_eval)
+        output = self.get_loss(y_pred=preds, y=y_eval)
+
+        return output
+
+    def search(self, train_df, eval_df):
+        self.opt_params = dict()
+
+        def train_impl(params):
+            self.train(train_df, eval_df, params)
+            if self.metric == 'auc':
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
+            else:
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label])).astype(int)
+
+            return self.get_loss(eval_df[self.label], y_pred)
+
+        self.opt_params = fmin(train_impl, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
+
+    def search_k_fold(self, k_fold, data):
+        self.opt_params = dict()
+
+        def train_impl_nfold(params):
+            loss = list()
+            for train_id, eval_id in k_fold.split(data):
+                train_df = data.iloc[train_id, :]
+                eval_df = data.iloc[eval_id, :]
+                self.train(train_df, eval_df, params)
+                if self.metric == 'auc':
+                    y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
+                else:
+                    y_pred = self.clf.predict(eval_df.drop(columns=[self.label])).astype(int)
+                loss.append(self.get_loss(eval_df[self.label], y_pred))
+            return np.mean(loss)
+
+        self.opt_params = fmin(train_impl_nfold, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
+
+    def train_k_fold(self, k_fold, train_data, test_data, params=None, drop_test_y=True):
+        acc_result = list()
+        train_pred = np.empty(train_data.shape[0])
+        test_pred = np.empty(test_data.shape[0])
+        if drop_test_y:
+            dtest = test_data.drop(columns=self.label)
+        else:
+            dtest = test_data
+        for train_id, eval_id in k_fold.split(train_data):
+            train_df = train_data.iloc[train_id, :]
+            eval_df = train_data.iloc[eval_id, :]
+            self.train(train_df, eval_df, params)
+            train_pred[eval_id] = self.clf.predict_proba(eval_df.drop(columns=self.label))[:, 1]
+            if self.metric == 'auc':
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
+            else:
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label])).astype(int)
+
+            acc_result.append(self.get_loss(eval_df[self.label], y_pred))
+            test_pred += self.clf.predict_proba(dtest)[:, 1]
+        test_pred /= k_fold.n_splits
+        return train_pred, test_pred, acc_result
