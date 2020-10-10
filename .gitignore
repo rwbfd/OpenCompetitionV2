@@ -8,4 +8,4 @@ test
 test/
 runs/
 runs
-__pycache__
+**__pycache__
