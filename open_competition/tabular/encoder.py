@@ -50,6 +50,28 @@ class LabelEncoder(EncoderBase):
         return df_copy
 
 
+class NANEncoder(EncoderBase):
+    def __init__(self):
+        super().__init__()
+
+    def fit(self, df, targets, method='simple_impute'):
+        self.reset()
+
+        for target in targets:
+            if method == 'simple_impute':
+                if target.startswith("continuous_"):
+                    self.trans_ls.append((target, df[target].median()))
+                elif target.startswith('discrete_'):
+                    self.trans_ls.append((target, df[target].mode()))
+
+    def transform(self, df):
+        df_copy = df.copy(deep=True)
+        for target, value in self.trans_ls:
+            df_copy.loc[pd.isnull(df_copy[target]), target] = df_copy.loc[pd.isnull(df_copy[target]),target].map(
+                lambda x: value)
+        return df_copy
+
+
 class CategoryEncoder(EncoderBase):
     def __init__(self):
         super().__init__()
@@ -507,6 +529,7 @@ class TargetMeanEncoder(object):
     """
     This is basically a duplicate.
     """
+
     def __init__(self, smoothing_coefficients=None):
         if not smoothing_coefficients:
             self.smoothing_coefficients = [1]

@@ -80,22 +80,17 @@ class CATOpt:
 
 @dataclass
 class LROpt:
-    penalty: any = hp.choice('penalty', ['l2', 'none'])
+    penalty: any = hp.choice('penalty', ['l2'])
+    C: any = hp.uniform('C', 0.5, 10)
+    max_iter: any = hp.choice('max_iter', [1000])
     solver: any = hp.choice('solver', ['lbfgs'])
-    C: any = hp.uniform('C', 0.5, 2)
-    intercept_scaling: any = hp.uniform('intercept_scaling', 0.5, 2)
-    class_weight: any = hp.choice('class_weight', ['balanced'])
-    max_iter: any = hp.choice('max_iter', [10000])
-    n_jobs: any = hp.choice('n_jobs', [4])
-
 
 @dataclass
 class KNNOpt:
-    n_neighbors: any = hp.choice('n_neighbors', [2])
+    n_neighbors: any = hp.choice('n_neighbors', [2, 5, 10])
+    weights: any = hp.choice('weights', ['uniform', 'distance'])
     leaf_size: any = hp.choice('leaf_size', [20, 25, 30, 35, 40, 45, 50])
-    p: any = hp.choice('p', [1, 2, 3, 4, 5, 6])
-    n_jobs: any = hp.choice('n_jobs', [4])
-    algorithm: any = hp.choice('algorithm', ['ball_tree', 'kd_tree', 'brute'])
+    p: any = hp.uniform('p', 1, 2)
 
 
 class FitterBase(object):
@@ -229,6 +224,7 @@ class XGBFitter(FitterBase):
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
             test_pred += self.clf.predict(xgb.DMatrix(dtest), ntree_limit=self.best_round)
         test_pred /= k_fold.n_splits
+        return train_pred, test_pred, acc_result
 
 
 class LGBFitter(FitterBase):
@@ -457,7 +453,6 @@ class LRFitter(FitterBase):
     def train(self, train_df, eval_df, params=None):
         x_train, y_train, x_eval, y_eval = train_df.drop(columns=[self.label]), train_df[self.label], \
                                            eval_df.drop(columns=[self.label]), eval_df[self.label],
-
         if params is None:
             use_params = deepcopy(self.opt_params)
         else:
@@ -489,8 +484,8 @@ class LRFitter(FitterBase):
         def train_impl_nfold(params):
             loss = list()
             for train_id, eval_id in k_fold.split(data):
-                train_df = data.loc[train_id]
-                eval_df = data.loc[eval_id]
+                train_df = data.iloc[train_id, :]
+                eval_df = data.iloc[eval_id, :]
                 self.train(train_df, eval_df, params)
                 if self.metric == 'auc':
                     y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
@@ -510,8 +505,8 @@ class LRFitter(FitterBase):
         else:
             dtest = test_data
         for train_id, eval_id in k_fold.split(train_data):
-            train_df = train_data.loc[train_id]
-            eval_df = train_data.loc[eval_id]
+            train_df = train_data.iloc[train_id, :]
+            eval_df = train_data.iloc[eval_id, :]
             self.train(train_df, eval_df, params)
             train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label))
             if self.metric == 'auc':
@@ -522,6 +517,7 @@ class LRFitter(FitterBase):
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
             test_pred += self.clf.predict(dtest)
         test_pred /= k_fold.n_splits
+        return train_pred, test_pred, acc_result
 
 
 class KNNFitter(FitterBase):
@@ -568,8 +564,8 @@ class KNNFitter(FitterBase):
         def train_impl_nfold(params):
             loss = list()
             for train_id, eval_id in k_fold.split(data):
-                train_df = data.loc[train_id]
-                eval_df = data.loc[eval_id]
+                train_df = data.iloc[train_id, :]
+                eval_df = data.iloc[eval_id, :]
                 self.train(train_df, eval_df, params)
                 if self.metric == 'auc':
                     y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
@@ -589,8 +585,8 @@ class KNNFitter(FitterBase):
         else:
             dtest = test_data
         for train_id, eval_id in k_fold.split(train_data):
-            train_df = train_data.loc[train_id]
-            eval_df = train_data.loc[eval_id]
+            train_df = train_data.iloc[train_id]
+            eval_df = train_data.iloc[eval_id]
             self.train(train_df, eval_df, params)
             train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label))
             if self.metric == 'auc':
@@ -601,3 +597,5 @@ class KNNFitter(FitterBase):
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
             test_pred += self.clf.predict(dtest)
         test_pred /= k_fold.n_splits
+        return train_pred, test_pred, acc_result
+

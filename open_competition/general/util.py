@@ -2,6 +2,7 @@
 import copy
 import pandas as pd
 import numpy as np
+import sympy
 from statsmodels.stats.outliers_influence import variance_inflation_factor
 
 from collections import OrderedDict
@@ -171,25 +172,18 @@ def vif(x):
     return vif
 
 
-def drop_const(data):
+def get_const_cols(data):
+    return [column for column in data.columns.values if len(data[column]) <= 1]
+
+
+def get_multi_colinear(data):
     data_copy = data.copy(deep=True)
-    for column in data_copy.columns.values:
-        if len(data_copy[column].unique()) <= 1:
-            data_copy = data_copy.drop(columns=[column])
-    return data_copy
+    col_to_drop = get_const_cols(data)
+    data_copy.drop(columns=col_to_drop, inplace=True)
 
-
-def drop_multi_collinear(data):
-    data_copy = data.copy(deep=True)
-    data_copy = add_const(data_copy)
-    result = vif(data_copy)
-    while result['vif'].map(lambda x: np.isinf(x)).any():
-        column_to_drop = result[np.isinf(result['vif'])].iloc[0, 0]
-
-        data_copy = data_copy.drop(columns=[column_to_drop])
-        result = vif(data_copy)
-    data_copy = data_copy.drop(columns=['const'])
-    return data_copy
+    s = np.linalg.svd(data_copy, full_matrices=False, compute_uv=False)
+    multi_colinear_col = [data_copy.columns[idx] for idx in range(len(data_copy.columns)) if s[idx] == 0]
+    return col_to_drop + multi_colinear_col
 
 
 def to_str(x):
@@ -197,6 +191,7 @@ def to_str(x):
         return "NAN"
     else:
         return str(x)
+
 
 def rm_prefix(x):
     if x.startswith("continuous_"):
