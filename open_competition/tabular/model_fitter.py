@@ -103,12 +103,34 @@ class SVMOpt:
     gamma: any = hp.choice('gamma', ['scale', 'auto'])
     probability: any = hp.choice('probability', [True])
 
+
 @dataclass
 class RFOpt:
     n_estimators: any = hp.choice('n_estimators', [1000])
     criterion: any = hp.choice('criterion', ['gini', 'entropy'])
     max_depth: any = hp.choice('max_depth', [3])
-    max_features : any = hp.uniform('max_features', 0.6, 1.0)
+    max_features: any = hp.uniform('max_features', 0.6, 1.0)
+
+
+@dataclass
+class RFOpt:
+    num_threads: any = hp.choice('num_threads', [cpu_count])
+    num_leaves: any = hp.choice('num_leaves', [64])
+    metric: any = hp.choice('metric', ['binary_error'])
+    num_round: any = hp.choice('num_rounds', [1000])
+    objective: any = hp.choice('objective', ['binary'])
+    learning_rate: any = hp.uniform('learning_rate', 0.01, 0.1)
+    feature_fraction: any = hp.uniform('feature_fraction', 0.5, 1.0)
+    bagging_fraction: any = hp.uniform('bagging_fraction', 0.8, 1.0)
+    device_type: any = hp.choice('device_tpye', ['gpu']) if use_gpu else hp.choice('device_type',
+                                                                                   ['cpu'])
+    boosting: any = hp.choice('boosting', ['rf'])
+    extra_trees: any = hp.choice('extra_tress', [False, True])
+    uniform_drop: any = hp.choice('uniform_drop', [True, False])
+    lambda_l1: any = hp.uniform('lambda_l1', 0, 10)  # TODO: Check range
+    lambda_l2: any = hp.uniform('lambda_l2', 0, 10)  # TODO: Check range
+    min_gain_to_split: any = hp.uniform('min_gain_to_split', 0, 1)  # TODO: Check range
+    min_data_in_bin = hp.choice('min_data_in_bin', [3, 5, 10, 15, 20, 50])
 
 
 class FitterBase(object):
@@ -693,5 +715,105 @@ class SVMFitter(FitterBase):
 
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
             test_pred += self.clf.predict_proba(dtest)[:, 1]
+        test_pred /= k_fold.n_splits
+        return train_pred, test_pred, acc_result
+
+
+class RFFitter(FitterBase):
+    def __init__(self, label='label', metric='error', opt: LGBOpt = None, max_eval=100):
+        super(RFFitter, self).__init__(label, metric, max_eval)
+        if opt is not None:
+            self.opt = opt
+        else:
+            self.opt = LGBOpt()
+        self.best_round = None
+        self.clf = None
+
+    def train(self, train_df, eval_df, params=None, use_best_eval=True):
+        self.best_round = None
+        dtrain = lgb.Dataset(train_df.drop(columns=[self.label]), train_df[self.label])
+        deval = lgb.Dataset(eval_df.drop(columns=[self.label]), eval_df[self.label])
+        evallist = [dtrain, deval]
+        if params is None:
+            use_params = deepcopy(self.opt_params)
+        else:
+            use_params = deepcopy(params)
+
+        num_round = use_params.pop('num_round')
+        if use_best_eval:
+            with io.StringIO() as buf, redirect_stdout(buf):
+                self.clf = lgb.train(use_params, dtrain, num_round, valid_sets=evallist)
+                output = buf.getvalue().split("\n")
+            min_error = np.inf
+            min_index = 0
+            for idx in range(len(output) - 1):
+                if len(output[idx].split("\t")) == 3:
+                    temp = float(output[idx].split("\t")[2].split(":")[1])
+                    if min_error > temp:
+                        min_error = temp
+                        min_index = int(output[idx].split("\t")[0][1:-1])
+            print("The minimum is attained in round %d" % (min_index + 1))
+            self.best_round = min_index + 1
+            return output
+        else:
+            with io.StringIO() as buf, redirect_stdout(buf):
+                self.clf = lgb.train(use_params, dtrain, num_round, valid_sets=evallist)
+                output = buf.getvalue().split("\n")
+            self.best_round = num_round
+            return output
+
+    def search(self, train_df, eval_df, use_best_eval=True):
+        self.opt_params = dict()
+
+        def train_impl(params):
+            self.train(train_df, eval_df, params, use_best_eval)
+            if self.metric == 'auc':
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round)
+            else:
+                y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]),
+                                           num_iteration=self.best_round) > 0.5).astype(int)
+            return self.get_loss(eval_df[self.label], y_pred)
+
+        self.opt_params = fmin(train_impl, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
+
+    def search_k_fold(self, k_fold, data, use_best_eval=True):
+        self.opt_params = dict()
+
+        def train_impl_nfold(params):
+            loss = list()
+            for train_id, eval_id in k_fold.split(data):
+                train_df = data.loc[train_id]
+                eval_df = data.loc[eval_id]
+                self.train(train_df, eval_df, params, use_best_eval)
+                if self.metric == 'auc':
+                    y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round)
+                else:
+                    y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]),
+                                               num_iteration=self.best_round) > 0.5).astype(int)
+                loss.append(self.get_loss(eval_df[self.label], y_pred))
+            return np.mean(loss)
+
+        self.opt_params = fmin(train_impl_nfold, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
+
+    def train_k_fold(self, k_fold, train_data, test_data, params=None, drop_test_y=True, use_best_eval=True):
+        acc_result = list()
+        train_pred = np.empty(train_data.shape[0])
+        test_pred = np.empty(test_data.shape[0])
+        if drop_test_y:
+            dtest = test_data.drop(columns=self.label)
+        else:
+            dtest = test_data
+        for train_id, eval_id in k_fold.split(train_data):
+            train_df = train_data.loc[train_id]
+            eval_df = train_data.loc[eval_id]
+            self.train(train_df, eval_df, params, use_best_eval)
+            train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label), num_iteration=self.best_round)
+            if self.metric == 'auc':
+                y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round)
+            else:
+                y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]),
+                                           num_iteration=self.best_round) > 0.5).astype(int)
+            acc_result.append(self.get_loss(eval_df[self.label], y_pred))
+            test_pred += self.clf.predict(dtest, num_iteration=self.best_round)
         test_pred /= k_fold.n_splits
         return train_pred, test_pred, acc_result
