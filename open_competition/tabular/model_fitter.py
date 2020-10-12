@@ -18,7 +18,6 @@ from sklearn.metrics import precision_score
 from sklearn.metrics import recall_score
 from sklearn.metrics import roc_auc_score
 from sklearn.svm import SVC
-from sklearn.ensemble import RandomForestClassifier, ExtraTreesClassifier
 import torch
 
 cpu_count = multiprocessing.cpu_count()
@@ -35,13 +34,17 @@ class XGBOpt:
     objective: any = hp.choice('objective', ['binary:logistic'])
     max_depth: any = hp.choice('max_depth', [4, 5, 6, 7, 8])
     num_round: any = hp.choice('num_round', [100])
-    eta: any = hp.uniform('eta', 0.01, 0.011)
+    eta: any = hp.uniform('eta', 0.01, 0.1)
     subsample: any = hp.uniform('subsample', 0.8, 1)
     colsample_bytree: any = hp.uniform('colsample_bytree', 0.3, 1)
     gamma: any = hp.choice('gamma', [0, 1, 5])
-    min_child_weight: any = hp.uniform('min_child_weight', 0, 15)  # by testing for iris dataset
+    min_child_weight: any = hp.uniform('min_child_weight', 0, 15)
     sampling_method: any = hp.choice('sampling_method', ['uniform', 'gradient_based'])
 
+    @staticmethod
+    def get_common_paarams():
+        return {'nthread': 4, 'max_depth': 3, 'eval_metric': 'error', 'object': 'binary:logistic', 'eta': 0.01,
+                'subsample': 0.8, 'colsample_bytree': 0.8, 'num_round':1000}
 
 @dataclass
 class LGBOpt:
@@ -64,6 +67,11 @@ class LGBOpt:
     min_gain_to_split: any = hp.uniform('min_gain_to_split', 0, 1)  # TODO: Check range
     min_data_in_bin = hp.choice('min_data_in_bin', [3, 5, 10, 15, 20, 50])
 
+    @staticmethod
+    def get_common_params():
+        return {'num_thread': 4, 'num_leaves': 12, 'metric': 'binary', 'objective': 'binary',
+                'num_round': 1000, 'learning_rate': 0.01, 'feature_fraction': 0.8, 'bagging_fraction': 0.8}
+
 
 @dataclass
 class CATOpt:
@@ -79,6 +87,11 @@ class CATOpt:
     depth: any = hp.choice('depth', [2, 3, 4, 5, 6, 7, 8])  # TODO: Check range
     max_bin: any = hp.choice('max_bin', [3, 5, 10, 15, 20, 50, 100, 500])
 
+    @staticmethod
+    def get_common_params():
+        return {'thread_count': 4, 'num_round': 100, 'learning_rate': 0.01, 'objective': 'CrossEntropy',
+                'eval_metric': 'Accuracy', 'depth': 3}
+
 
 @dataclass
 class LROpt:
@@ -87,6 +100,9 @@ class LROpt:
     max_iter: any = hp.choice('max_iter', [1000])
     solver: any = hp.choice('solver', ['lbfgs'])
 
+    @staticmethod
+    def get_common_params():
+        return {'penalty': 'l2', 'C': 0.5}
 
 @dataclass
 class KNNOpt:
@@ -102,14 +118,6 @@ class SVMOpt:
     kernel: any = hp.choice('kernel', ['rbf', 'poly', 'sigmoid'])
     gamma: any = hp.choice('gamma', ['scale', 'auto'])
     probability: any = hp.choice('probability', [True])
-
-
-@dataclass
-class RFOpt:
-    n_estimators: any = hp.choice('n_estimators', [1000])
-    criterion: any = hp.choice('criterion', ['gini', 'entropy'])
-    max_depth: any = hp.choice('max_depth', [3])
-    max_features: any = hp.uniform('max_features', 0.6, 1.0)
 
 
 @dataclass
@@ -548,14 +556,14 @@ class LRFitter(FitterBase):
             train_df = train_data.iloc[train_id, :]
             eval_df = train_data.iloc[eval_id, :]
             self.train(train_df, eval_df, params)
-            train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label))
+            train_pred[eval_id] = self.clf.predict_proba(eval_df.drop(columns=self.label))[:, 1]
             if self.metric == 'auc':
                 y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
             else:
                 y_pred = self.clf.predict(eval_df.drop(columns=[self.label])).astype(int)
 
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
-            test_pred += self.clf.predict(dtest)
+            test_pred += self.clf.predict_proba(dtest)[:,1]
         test_pred /= k_fold.n_splits
         return train_pred, test_pred, acc_result
 

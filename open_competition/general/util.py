@@ -176,14 +176,22 @@ def get_const_cols(data):
     return [column for column in data.columns.values if len(data[column]) <= 1]
 
 
-def get_multi_colinear(data):
-    data_copy = data.copy(deep=True)
-    col_to_drop = get_const_cols(data)
-    data_copy.drop(columns=col_to_drop, inplace=True)
+def proj(a, u):
+    return (np.dot(u, a) / np.dot(u, u)) * u
 
-    s = np.linalg.svd(data_copy, full_matrices=False, compute_uv=False)
-    multi_colinear_col = [data_copy.columns[idx] for idx in range(len(data_copy.columns)) if s[idx] == 0]
-    return col_to_drop + multi_colinear_col
+
+def get_multi_col(data, tres=1e-6):
+    columns = data.columns
+    u = [data[columns[0]]]
+    ind = [columns[0]]
+    for column in columns[1:]:
+        u_new = data[column]
+        for n in range(len(u)):
+            u_new -= proj(data[column], u[n])
+        if u_new.map(lambda x: np.abs(x)).sum() > tres:
+            u.append(u_new)
+            ind.append(column)
+    return ind
 
 
 def to_str(x):
@@ -200,3 +208,9 @@ def rm_prefix(x):
         return x[9:]
     else:
         return x
+
+if __name__ == '__main__':
+    data_copy = np.array([[1, 1, 1, 1], [0, 1, 1, 1], [1, 0, 0, 0]]).T
+    df = pd.DataFrame(data=data_copy, columns=['a1', 'a2', 'a3'])
+    ind = get_multi_col(df)
+    print(ind)
