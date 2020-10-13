@@ -104,12 +104,17 @@ class LROpt:
     def get_common_params():
         return {'penalty': 'l2', 'C': 0.5}
 
+
 @dataclass
 class KNNOpt:
     n_neighbors: any = hp.choice('n_neighbors', [2, 5, 10])
     weights: any = hp.choice('weights', ['uniform', 'distance'])
     leaf_size: any = hp.choice('leaf_size', [20, 25, 30, 35, 40, 45, 50])
     p: any = hp.uniform('p', 1, 2)
+
+    @staticmethod
+    def get_common_params():
+        return {'n_neighbors': 5, 'weights': 'distance'}
 
 
 @dataclass
@@ -118,6 +123,10 @@ class SVMOpt:
     kernel: any = hp.choice('kernel', ['rbf', 'poly', 'sigmoid'])
     gamma: any = hp.choice('gamma', ['scale', 'auto'])
     probability: any = hp.choice('probability', [True])
+
+    @staticmethod
+    def get_common_params():
+        return {"C": 0, 'kernel': 'rbf', 'probability': True}
 
 
 @dataclass
@@ -140,6 +149,10 @@ class RFOpt:
     min_gain_to_split: any = hp.uniform('min_gain_to_split', 0, 1)  # TODO: Check range
     min_data_in_bin = hp.choice('min_data_in_bin', [3, 5, 10, 15, 20, 50])
 
+    @staticmethod
+    def get_common_params():
+        return {"num_threads": 4, 'num_leaves': 12, 'objective': 'binary', 'metric': 'binary_error',
+                'learning_rate': 0.1}
 
 class FitterBase(object):
     def __init__(self, label, metric, max_eval=100, opt=None):

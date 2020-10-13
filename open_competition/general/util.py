@@ -180,7 +180,7 @@ def proj(a, u):
     return (np.dot(u, a) / np.dot(u, u)) * u
 
 
-def get_multi_col(data, tres=1e-6):
+def get_ind_cols(data, tres=1e-6):
     columns = data.columns
     u = [data[columns[0]]]
     ind = [columns[0]]
@@ -209,8 +209,3 @@ def rm_prefix(x):
     else:
         return x
 
-if __name__ == '__main__':
-    data_copy = np.array([[1, 1, 1, 1], [0, 1, 1, 1], [1, 0, 0, 0]]).T
-    df = pd.DataFrame(data=data_copy, columns=['a1', 'a2', 'a3'])
-    ind = get_multi_col(df)
-    print(ind)
