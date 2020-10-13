@@ -9,7 +9,7 @@ from collections import OrderedDict
 
 from sklearn.model_selection import KFold
 from sklearn.metrics import confusion_matrix, accuracy_score, recall_score, precision_score, f1_score, roc_auc_score
-
+from ind_cols import get_ind_col
 
 def add_or_append_dict(input_dict, key, value):
     result_dict = copy.deepcopy(input_dict)
@@ -159,39 +159,12 @@ def get_result_from_dump(file_name='lightgbm.txt'):
     return train_min, test_min
 
 
-def add_const(data, column_name='const'):
-    data[column_name] = [1 for x in range(data.shape[0])]
-    return data
-
-
-def vif(x):
-    vif = pd.DataFrame()
-    vif['variables'] = x.columns
-    vif['vif'] = [variance_inflation_factor(x.values, i) for i in range(x.shape[1])]
-
-    return vif
-
-
 def get_const_cols(data):
     return [column for column in data.columns.values if len(data[column]) <= 1]
 
 
-def proj(a, u):
-    return (np.dot(u, a) / np.dot(u, u)) * u
-
-
-def get_ind_cols(data, tres=1e-6):
-    columns = data.columns
-    u = [data[columns[0]]]
-    ind = [columns[0]]
-    for column in columns[1:]:
-        u_new = data[column]
-        for n in range(len(u)):
-            u_new -= proj(data[column], u[n])
-        if u_new.map(lambda x: np.abs(x)).sum() > tres:
-            u.append(u_new)
-            ind.append(column)
-    return ind
+def get_ind_cols(df):
+    return get_ind_col(df)
 
 
 def to_str(x):
@@ -208,4 +181,3 @@ def rm_prefix(x):
         return x[9:]
     else:
         return x
-
