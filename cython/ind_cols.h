@@ -1,65 +1,8 @@
 #pragma once
 #include <vector>
 #include <cmath>
+#include <iostream>
 const double tres = 1e-5;
-
-template<typename T>
-class Vector{
-public:
-    T* data_pointer;
-    const long size;
-
-    Vector(const long size):size(size){
-        data_pointer = new T[size];
-    }
-
-    ~Vector(){
-        delete[] data_pointer;
-    }
-
-    T& operator()(const long size){
-        return data_pointer[size];
-
-    }
-
-    const T operator()(const long size) const{
-        return data_pointer[size];
-    }
-};
-
-
-template<typename T, bool col_major=false>
-class Matrix{
-public:
-    T* data_pointer;
-    const long nrow;
-    const long ncol;
-
-    Matrix(const long nrow, const long  ncol):nrow(nrow), ncol(ncol){
-        data_pointer = new T[nrow*ncol];
-    }
-
-    ~Matrix(){
-        delete[] data_pointer;
-    }
-    T& operator()(const int row, const int col){
-        if (col_major) {
-            return data_pointer[row + col*nrow];
-        }
-        else{
-            return data_pointer[col + row*ncol];
-        }
-    }
-    const T operator()(const int row, const int col) const {
-        if (col_major) {
-            return data_pointer[row + col*nrow];
-        }
-        else {
-            return data_pointer[col + row *ncol];
-
-        }
-    }
-};
 
 
 template<typename T, bool col_major=false>
@@ -132,7 +75,8 @@ std::vector<long> get_ind_cols(double *data, const long nrow, const long ncol) {
             sum += std::abs(u_new[row]);
         }
 
-        if (sum>tres){
+        if (sum/nrow>tres){
+
             u.push_back(new double[nrow]);
             for (auto row=0;row<nrow;row++) {
                 u[u.size() - 1][row]=u_new[row];
