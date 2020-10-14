@@ -13,6 +13,7 @@ import xgboost as xgb
 import lightgbm as lgb
 
 from sklearn.decomposition import PCA
+from sklearn.manifold import TSNE
 
 cpu_count = multiprocessing.cpu_count()
 
@@ -783,16 +784,30 @@ class DimReducEncoder:
             for method, parameter in config:
                 if method == 'pca':
                     n_comp = parameter['n_components']
-                    pos = parameter['pos']
+                    pos = parameter.get('pos') if parameter.get("pos") else ""
                     encoder = PCA(n_comp)
                     encoder.fit(df[target])
                     self.result.append((method, encoder, pos, n_comp, target))
+                if method == 'tsne':
+                    if parameter.get("pos"):
+                        pos = parameter.get("pos")
+                        parameter.pop("pos")
+                    else:
+                        pos = ""
+                    encoder = TSNE(**parameter)
+                    encoder.fit(df[target])
+                    self.result.append((method, encoder, pos, parameter.get("n_components"), target))
 
     def transform(self, df):
-        result = None
+        result = df.copy(deep=True)
         for method, encoder, pos, n_comp, target in self.result:
             if method == 'pca':
                 new_names = ["pca_" + str(x) + pos for x in range(n_comp)]
-                result = pd.DataFrame(encoder.transform(df[target]), columns=new_names)
-                result = pd.concat([df, result], axis=1)
+                result = pd.concat([result, pd.DataFrame(encoder.transform(df[target]), columns=new_names)], axis=1)
+
+            elif method == "tsne":
+                new_names =["tsne_" + str(x) + pos for x in range(n_comp)]
+                result = pd.concat([result, pd.DataFrame(encoder.embedding_, columns=new_names)], axis=1)
+
+
         return result

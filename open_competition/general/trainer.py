@@ -340,6 +340,21 @@ class Trainer:
             scheduler.load_state_dict(torch.load(os.path.join(model_path, "scheduler.pt")))
 
         model = self.model
+        # Check if continuing training from a checkpoint
+        if model_path is not None:
+            # set global_step to global_step of last saved checkpoint from model path
+            self.global_step = int(model_path.split("-")[-1])
+            epochs_trained = self.global_step // (len(train_dataloader) // self.args.gradient_accumulation_steps)
+            steps_trained_in_current_epoch = self.global_step % (
+                    len(train_dataloader) // self.args.gradient_accumulation_steps
+            )
+
+            logger.info("  Continuing training from checkpoint, will skip to saved global_step")
+            logger.info("  Continuing training from epoch %d", epochs_trained)
+            logger.info("  Continuing training from global step %d", self.global_step)
+            logger.info("  Will skip the first %d steps in the first epoch", steps_trained_in_current_epoch)
+            self.model.load_state_dict(torch.load(model_path + "/model.pt"))
+
         if self.args.fp16:
             if not is_apex_available():
                 raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
@@ -382,23 +397,7 @@ class Trainer:
         self.epoch = 0
         epochs_trained = 0
         steps_trained_in_current_epoch = 0
-        # Check if continuing training from a checkpoint
-        if model_path is not None:
-            # set global_step to global_step of last saved checkpoint from model path
-            try:
-                self.global_step = int(model_path.split("-")[-1].split("/")[0])
-                epochs_trained = self.global_step // (len(train_dataloader) // self.args.gradient_accumulation_steps)
-                steps_trained_in_current_epoch = self.global_step % (
-                        len(train_dataloader) // self.args.gradient_accumulation_steps
-                )
 
-                logger.info("  Continuing training from checkpoint, will skip to saved global_step")
-                logger.info("  Continuing training from epoch %d", epochs_trained)
-                logger.info("  Continuing training from global step %d", self.global_step)
-                logger.info("  Will skip the first %d steps in the first epoch", steps_trained_in_current_epoch)
-            except ValueError:
-                self.global_step = 0
-                logger.info("  Starting fine-tuning.")
 
         tr_loss = 0.0
         logging_loss = 0.0
@@ -623,8 +622,8 @@ class Trainer:
         # Save a trained model and configuration using `save_pretrained()`.
         # They can then be reloaded using `from_pretrained()`
         if not isinstance(self.model, torch.nn.Module):
-            raise ValueError("Trainer.model appears to not be a PreTrainedModel")
-        self.model.save_pretrained(output_dir)
+            raise ValueError("Trainer.model appears to not be a Torch Model")
+        torch.save(self.model.state_dict(), output_dir + "/" + "model.pt")
 
         # Good practice: save your training arguments together with the trained model
         torch.save(self.args, os.path.join(output_dir, "training_args.bin"))
