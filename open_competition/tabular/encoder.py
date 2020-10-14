@@ -782,16 +782,16 @@ class DimReducEncoder:
         for target in targets:
             for method, parameter in config:
                 if method == 'pca':
-                    n_comp = config['n_components']
-                    pos = config['pos']
+                    n_comp = parameter['n_components']
+                    pos = parameter['pos']
                     encoder = PCA(n_comp)
-                    PCA.fit(df[target])
+                    encoder.fit(df[target])
                     self.result.append((method, encoder, pos, n_comp, target))
 
     def transform(self, df):
-        result = df.copy(deep=True)
         for method, encoder, pos, n_comp, target in self.result:
             if method == 'pca':
-                new_names = ["_pca_" + str(x) + "_pos" for x in range(n_comp)]
-                result[new_names] = encoder.transform(df[target])
+                new_names = ["pca_" + str(x) + pos for x in range(n_comp)]
+                result = pd.DataFrame(encoder.transform(df[target]), columns=new_names)
+                result = pd.concat([df, result], axis=1)
         return result
