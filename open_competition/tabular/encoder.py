@@ -789,6 +789,7 @@ class DimReducEncoder:
                     self.result.append((method, encoder, pos, n_comp, target))
 
     def transform(self, df):
+        result = None
         for method, encoder, pos, n_comp, target in self.result:
             if method == 'pca':
                 new_names = ["pca_" + str(x) + pos for x in range(n_comp)]
