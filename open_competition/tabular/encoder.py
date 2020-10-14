@@ -66,7 +66,7 @@ class NANEncoder(EncoderBase):
     def transform(self, df):
         df_copy = df.copy(deep=True)
         for target, value in self.trans_ls:
-            df_copy.loc[pd.isnull(df_copy[target]), target] = df_copy.loc[pd.isnull(df_copy[target]),target].map(
+            df_copy.loc[pd.isnull(df_copy[target]), target] = df_copy.loc[pd.isnull(df_copy[target]), target].map(
                 lambda x: value)
         return df_copy
 
