@@ -103,6 +103,68 @@ class CategoryEncoder(EncoderBase):
             self._fit_hash(df, target)
         if method == 'target':
             self._fit_target(df, y, target, parameter)
+        if method == 'catboost':
+            self._fit_catboost(df, y, target, parameter)
+        if method == 'glm':
+            self._fit_glm(df, y, target, parameter)
+        if method == 'js':
+            self._fit_js(df, y, target, parameter)
+        if method == 'leave_one_out':
+            self._fit_leave_one_out(df, y, target, parameter)
+        if method == 'polinomial':
+            self._fit_polynomial(df, y, target, parameter)
+        if method == 'sum':
+            self._fit_sum(df, y, target, parameter)
+        else:
+            raise NotImplementedError()
+
+    def _fit_polynomial(self, df, y, target, parameter):
+        poly_encoder = ce.PolynomialEncoder()
+
+        poly_encoder.fit(df[target].map(to_str), df[y])
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_poly' for x in
+                poly_encoder.get_feature_names()]
+        self.trans_ls.append(('catboost', name, target, poly_encoder))
+
+    def _fit_sum(self, df, y, target, parameter):
+        sum_encoder = ce.SumEncoder()
+
+        sum_encoder.fit(df[target].map(to_str))
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_poly' for x in
+                sum_encoder.get_feature_names()]
+        self.trans_ls.append(('catboost', name, target, sum_encoder))
+
+    def _fit_js(self, df, y, target, parameter):
+        js_encoder = ce.JamesSteinEncoder()
+
+        js_encoder.fit(df[target].map(to_str), df[y])
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_js' for x in
+                js_encoder.get_feature_names()]
+        self.trans_ls.append(('catboost', name, target, js_encoder))
+
+    def _fit_leave_one_out(self, df, y, target, parameter):
+        loo_encoder = ce.LeaveOneOutEncoder()
+
+        loo_encoder.fit(df[target].map(to_str), df[y])
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_leave_one_out' for x in
+                loo_encoder.get_feature_names()]
+        self.trans_ls.append(('leave_one_out', name, target, loo_encoder))
+
+    def _fit_catboost(self, df, y, target, parameter):
+        cat_encoder = ce.CatBoostEncoder()
+
+        cat_encoder.fit(df[target].map(to_str), df[y])
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_catboost' for x in
+                cat_encoder.get_feature_names()]
+        self.trans_ls.append(('catboost', name, target, cat_encoder))
+
+    def _fit_glm(self, df, y, target, parameter):
+        glm_encoder = ce.GLMMEncoder()
+
+        glm_encoder.fit(df[target].map(to_str), df[y])
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_glm' for x in
+                glm_encoder.get_feature_names()]
+        self.trans_ls.append(('glm', name, target, glm_encoder))
 
     def _fit_hash(self, df, target):
         hash_encoder = ce.HashingEncoder()
@@ -257,7 +319,7 @@ class UnaryContinuousVarEncoder(EncoderBase):
                     self._fit_inv(target)
                 if method == 'sqrt':
                     self._fit_sqrt(target)
-
+   
     def transform(self, df):
         result = df.copy(deep=True)
         for method, new_name, target, encoder in self.trans_ls:
@@ -806,8 +868,7 @@ class DimReducEncoder:
                 result = pd.concat([result, pd.DataFrame(encoder.transform(df[target]), columns=new_names)], axis=1)
 
             elif method == "tsne":
-                new_names =["tsne_" + str(x) + pos for x in range(n_comp)]
+                new_names = ["tsne_" + str(x) + pos for x in range(n_comp)]
                 result = pd.concat([result, pd.DataFrame(encoder.embedding_, columns=new_names)], axis=1)
-
 
         return result

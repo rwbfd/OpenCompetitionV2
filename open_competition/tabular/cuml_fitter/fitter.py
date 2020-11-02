@@ -1,16 +1,15 @@
 from copy import deepcopy
 from dataclasses import dataclass, asdict
-from cuml.linear_model import LogisticRegression
-from cuml.neighbors import KNeighborsClassifier
-from cuml.svm import SVC
-import cudf
 
+import cudf
 import hyperopt.pyll
 import numpy as np
-from hyperopt import fmin, tpe, hp
+from cuml.linear_model import LogisticRegression
 from cuml.metrics import accuracy_score
 from cuml.metrics import roc_auc_score
+from cuml.neighbors import KNeighborsClassifier
 from cuml.svm import SVC
+from hyperopt import fmin, tpe, hp
 
 
 @dataclass
