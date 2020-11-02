@@ -319,7 +319,7 @@ class UnaryContinuousVarEncoder(EncoderBase):
                     self._fit_inv(target)
                 if method == 'sqrt':
                     self._fit_sqrt(target)
-   
+
     def transform(self, df):
         result = df.copy(deep=True)
         for method, new_name, target, encoder in self.trans_ls:
