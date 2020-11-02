@@ -54,7 +54,6 @@ class XGBOpt:
 
 @dataclass
 class LGBOpt:
-<<<<<<< HEAD
     num_threads: any = hp.choice('num_threads', [cpu_count])
     num_leaves: any = hp.choice('num_leaves', [64])
     metric: any = hp.choice('metric', ['binary_error'])
@@ -72,7 +71,6 @@ class LGBOpt:
     lambda_l1: any = hp.uniform('lambda_l1', 0, 10)  # TODO: Check range
     lambda_l2: any = hp.uniform('lambda_l2', 0, 10)  # TODO: Check range
     min_gain_to_split: any = hp.uniform('min_gain_to_split', 0, 1)  # TODO: Check range
-=======
     num_threads: hyperopt.pyll.base.Apply = hp.choice('num_threads', [cpu_count])
     num_leaves: hyperopt.pyll.base.Apply = hp.choice('num_leaves', [64])
     metric: hyperopt.pyll.base.Apply = hp.choice('metric', ['binary_error'])
@@ -90,7 +88,6 @@ class LGBOpt:
     lambda_l1: hyperopt.pyll.base.Apply = hp.uniform('lambda_l1', 0, 10)  # TODO: Check range
     lambda_l2: hyperopt.pyll.base.Apply = hp.uniform('lambda_l2', 0, 10)  # TODO: Check range
     min_gain_to_split: hyperopt.pyll.base.Apply = hp.uniform('min_gain_to_split', 0, 1)  # TODO: Check range
->>>>>>> d1f422bcd99e5d615f8bbc0c3df2c84e6633c45e
     min_data_in_bin = hp.choice('min_data_in_bin', [3, 5, 10, 15, 20, 50])
 
     @staticmethod
@@ -101,7 +98,6 @@ class LGBOpt:
 
 @dataclass
 class CATOpt:
-<<<<<<< HEAD
     thread_count: any = hp.choice('thread_count', [cpu_count])
     num_round: any = hp.choice('num_round', [100])
     objective: any = hp.choice('objective', ['CrossEntropy'])
@@ -118,7 +114,6 @@ class CATOpt:
     def get_common_params():
         return {'thread_count': 4, 'num_round': 100, 'learning_rate': 0.01, 'objective': 'CrossEntropy',
                 'eval_metric': 'Accuracy', 'depth': 3}
-=======
     thread_count: hyperopt.pyll.base.Apply = hp.choice('thread_count', [cpu_count])
     num_round: hyperopt.pyll.base.Apply = hp.choice('num_round', [100])
     objective: hyperopt.pyll.base.Apply = hp.choice('objective', ['CrossEntropy'])
@@ -132,12 +127,10 @@ class CATOpt:
     depth: hyperopt.pyll.base.Apply = hp.choice('depth', [0, 1, 2, 3, 4, 5])  # TODO: Check range
     one_hot_max_size: hyperopt.pyll.base.Apply = hp.choice('one_hot_max_size', [0, 1, 2, 3, 4, 5])  # TODO: Check range
     max_bin: hyperopt.pyll.base.Apply = hp.choice('max_bin', [3, 5, 10, 15, 20, 50, 100, 500])
->>>>>>> d1f422bcd99e5d615f8bbc0c3df2c84e6633c45e
 
 
 @dataclass
 class LROpt:
-<<<<<<< HEAD
     penalty: any = hp.choice('penalty', ['l2'])
     C: any = hp.uniform('C', 0.5, 10)
     max_iter: any = hp.choice('max_iter', [1000])
@@ -146,7 +139,6 @@ class LROpt:
     @staticmethod
     def get_common_params():
         return {'penalty': 'l2', 'C': 0.5}
-=======
     penalty: hyperopt.pyll.base.Apply = hp.choice('penalty', ['l2', 'none'])
     solver: hyperopt.pyll.base.Apply = hp.choice('solver', ['lbfgs'])
     C: hyperopt.pyll.base.Apply = hp.uniform('C', 0.5, 2)
@@ -154,7 +146,6 @@ class LROpt:
     class_weight: hyperopt.pyll.base.Apply = hp.choice('class_weight', ['balanced'])
     max_iter: hyperopt.pyll.base.Apply = hp.choice('max_iter', [10000])
     n_jobs: hyperopt.pyll.base.Apply = hp.choice('n_jobs', [4])
->>>>>>> d1f422bcd99e5d615f8bbc0c3df2c84e6633c45e
 
 
 @dataclass
@@ -180,13 +171,11 @@ class SVMOpt:
     @staticmethod
     def get_common_params():
         return {"C": 0, 'kernel': 'rbf', 'probability': True}
-=======
     n_neighbors: hyperopt.pyll.base.Apply = hp.choice('n_neighbors', [2])
     leaf_size: hyperopt.pyll.base.Apply = hp.choice('leaf_size', [20, 25, 30, 35, 40, 45, 50])
     p: hyperopt.pyll.base.Apply = hp.choice('p', [1, 2, 3, 4, 5, 6])
     n_jobs: hyperopt.pyll.Apply = hp.choice('n_jobs', [4])
     algorithm: hyperopt.pyll.Apply = hp.choice('algorithm', ['ball_tree', 'kd_tree', 'brute'])
->>>>>>> d1f422bcd99e5d615f8bbc0c3df2c84e6633c45e
 
 
 @dataclass
@@ -470,7 +459,6 @@ class LRFitter(FitterBase):
         preds = self.clf.predict(X=x_eval)
         output = self.get_loss(y_pred=preds, y=y_eval)
 
-<<<<<<< HEAD
             for idx in range(1, num_round + 1):
                 if len(output[idx].split("\t")) == 6:
                     temp = 1 - float(output[idx].split("\t")[2].split(":")[1])
@@ -490,9 +478,7 @@ class LRFitter(FitterBase):
                 output = buf.getvalue().split("\n")
             self.best_round = num_round
             return output
-=======
         return output
->>>>>>> d1f422bcd99e5d615f8bbc0c3df2c84e6633c45e
 
     def search(self, train_df, eval_df):
         self.opt_params = dict()
@@ -500,18 +486,15 @@ class LRFitter(FitterBase):
         def train_impl(params):
             self.train(train_df, eval_df, params)
             if self.metric == 'auc':
-<<<<<<< HEAD
                 y_pred = self.clf.predict(eval_df.drop(columns=[self.label]),
                                           ntree_end=self.best_round - 1)
             else:
                 y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]),
                                            ntree_end=self.best_round - 1) > 0.5).astype(int)
-=======
                 y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
             else:
                 y_pred = self.clf.predict(eval_df.drop(columns=[self.label])).astype(int)
 
->>>>>>> d1f422bcd99e5d615f8bbc0c3df2c84e6633c45e
             return self.get_loss(eval_df[self.label], y_pred)
 
         self.opt_params = fmin(train_impl, asdict(self.opt), algo=tpe.suggest, max_evals=self.max_eval)
@@ -526,18 +509,15 @@ class LRFitter(FitterBase):
                 eval_df = data.loc[eval_id]
                 self.train(train_df, eval_df, params)
                 if self.metric == 'auc':
-<<<<<<< HEAD
                     y_pred = self.clf.predict(eval_df.drop(columns=[self.label]),
                                               ntree_end=self.best_round - 1)
                 else:
                     y_pred = (self.clf.predict(eval_df.drop(columns=[self.label]),
 
                                                ntree_end=self.best_round - 1) > 0.5).astype(int)
-=======
                     y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
                 else:
                     y_pred = self.clf.predict(eval_df.drop(columns=[self.label])).astype(int)
->>>>>>> d1f422bcd99e5d615f8bbc0c3df2c84e6633c45e
                 loss.append(self.get_loss(eval_df[self.label], y_pred))
             return np.mean(loss)
 
@@ -554,7 +534,6 @@ class LRFitter(FitterBase):
         for train_id, eval_id in k_fold.split(train_data):
             train_df = train_data.loc[train_id]
             eval_df = train_data.loc[eval_id]
-<<<<<<< HEAD
             self.train(train_df, eval_df, params, use_best_eval)
             train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label),
                                                    ntree_end=self.best_round - 1)
@@ -567,7 +546,6 @@ class LRFitter(FitterBase):
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
             test_pred += self.clf.predict(dtest,
                                           ntree_end=self.best_round - 1)
-=======
             self.train(train_df, eval_df, params)
             train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label))
             if self.metric == 'auc':
@@ -577,11 +555,9 @@ class LRFitter(FitterBase):
 
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
             test_pred += self.clf.predict(dtest)
->>>>>>> d1f422bcd99e5d615f8bbc0c3df2c84e6633c45e
         test_pred /= k_fold.n_splits
 
 
-<<<<<<< HEAD
 class LRFitter(FitterBase):
     def __init__(self, label='label', metric='error', opt: LROpt = None, max_eval=100):
         super(LRFitter, self).__init__(label, metric, max_eval)
@@ -589,7 +565,6 @@ class LRFitter(FitterBase):
             self.opt = opt
         else:
             self.opt = LROpt()
-=======
 class KNNFitter(FitterBase):
     def __init__(self, label='label', metric='error', opt: KNNOpt = None, max_eval=100):
         super(KNNFitter, self).__init__(label, metric, max_eval)
@@ -597,13 +572,11 @@ class KNNFitter(FitterBase):
             self.opt = opt
         else:
             self.opt = KNNOpt()
->>>>>>> d1f422bcd99e5d615f8bbc0c3df2c84e6633c45e
         self.clf = None
 
     def train(self, train_df, eval_df, params=None):
         x_train, y_train, x_eval, y_eval = train_df.drop(columns=[self.label]), train_df[self.label], \
                                            eval_df.drop(columns=[self.label]), eval_df[self.label],
-<<<<<<< HEAD
         if params is None:
             use_params = deepcopy(self.opt_params)
         else:
@@ -698,7 +671,6 @@ class KNNFitter(FitterBase):
     def search(self, train_df, eval_df):
         self.opt_params = dict()
 
-=======
 
         if params is None:
             use_params = deepcopy(self.opt_params)
@@ -714,7 +686,6 @@ class KNNFitter(FitterBase):
     def search(self, train_df, eval_df):
         self.opt_params = dict()
 
->>>>>>> d1f422bcd99e5d615f8bbc0c3df2c84e6633c45e
         def train_impl(params):
             self.train(train_df, eval_df, params)
             if self.metric == 'auc':
@@ -728,7 +699,6 @@ class KNNFitter(FitterBase):
 
     def search_k_fold(self, k_fold, data):
         self.opt_params = dict()
-<<<<<<< HEAD
 
         def train_impl_nfold(params):
             loss = list()
@@ -814,14 +784,12 @@ class SVMFitter(FitterBase):
             for train_id, eval_id in k_fold.split(data):
                 train_df = data.iloc[train_id, :]
                 eval_df = data.iloc[eval_id, :]
-=======
 
         def train_impl_nfold(params):
             loss = list()
             for train_id, eval_id in k_fold.split(data):
                 train_df = data.loc[train_id]
                 eval_df = data.loc[eval_id]
->>>>>>> d1f422bcd99e5d615f8bbc0c3df2c84e6633c45e
                 self.train(train_df, eval_df, params)
                 if self.metric == 'auc':
                     y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
@@ -841,24 +809,20 @@ class SVMFitter(FitterBase):
         else:
             dtest = test_data
         for train_id, eval_id in k_fold.split(train_data):
-<<<<<<< HEAD
             train_df = train_data.iloc[train_id, :]
             eval_df = train_data.iloc[eval_id, :]
             self.train(train_df, eval_df, params)
             train_pred[eval_id] = self.clf.predict_proba(eval_df.drop(columns=self.label))[:, 1]
-=======
             train_df = train_data.loc[train_id]
             eval_df = train_data.loc[eval_id]
             self.train(train_df, eval_df, params)
             train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label))
->>>>>>> d1f422bcd99e5d615f8bbc0c3df2c84e6633c45e
             if self.metric == 'auc':
                 y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
             else:
                 y_pred = self.clf.predict(eval_df.drop(columns=[self.label])).astype(int)
 
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
-<<<<<<< HEAD
             test_pred += self.clf.predict_proba(dtest)[:, 1]
         test_pred /= k_fold.n_splits
         return train_pred, test_pred, acc_result
@@ -962,7 +926,5 @@ class RFFitter(FitterBase):
             test_pred += self.clf.predict(dtest, num_iteration=self.best_round)
         test_pred /= k_fold.n_splits
         return train_pred, test_pred, acc_result
-=======
             test_pred += self.clf.predict(dtest)
         test_pred /= k_fold.n_splits
->>>>>>> d1f422bcd99e5d615f8bbc0c3df2c84e6633c45e
