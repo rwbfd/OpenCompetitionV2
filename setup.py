@@ -9,6 +9,6 @@ setuptools.setup(
     author="Example",
     author_email="author@example.com",
     description="A small example package",
-    packages=setuptools.find_packages(),
+    packages=['thermoencoder',],
     python_requires='>=3.7',
 )

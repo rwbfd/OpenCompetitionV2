@@ -14,7 +14,7 @@ import lightgbm as lgb
 
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
-
+from thermoencoder import ThermoEncoder
 cpu_count = multiprocessing.cpu_count()
 
 
@@ -115,6 +115,9 @@ class CategoryEncoder(EncoderBase):
             self._fit_polynomial(df, y, target, parameter)
         if method == 'sum':
             self._fit_sum(df, y, target, parameter)
+        if method == 'thermo':
+            self._fit_thermo(df, y, target, parameter)
+
         else:
             raise NotImplementedError()
 
@@ -232,6 +235,13 @@ class CategoryEncoder(EncoderBase):
             if method == 'ordinal':
                 result_df[name] = encoder.transform(df[target].map(to_str))
         return result_df
+
+    def _fit_thermo(self, df, y, target, parameter):
+        encoder = ThermoEncoder()
+
+        encoder.fit(df[target].map(to_str))
+        name = 'continuous_' + remove_continuous_discrete_prefix(target) + '_thermo'
+        self.trans_ls.append(('thermo', name, target, encoder))
 
 
 class DiscreteEncoder(EncoderBase):
