@@ -570,14 +570,8 @@ class GroupbyEncoder(EncoderBase):  # TODO: Not Finished Yet
         self.reset()
         for target in targets:
             for groupby, operations, param in groupby_op_list:
-                if operations in ['gmean', 'hmean', 'kurtosis', 'mode', 'skew', 'kstat', 'tmean', 'tmin', 'tmax',
-                                  'tstd',
-                                  'tsem', 'trim_mean', 'gstd', 'iqr', 'entropy', 'median_absolute_deviation',
-                                  'bayes_mvs', 'median_abs_deviation']:
-
-                else:
-                    for operation in operations:
-                        groupby_result = self._fit_one(df, target, groupby, operation)
+                for operation in operations:
+                    groupby_result = self._fit_one(df, target, groupby, operation)
                     name = target + '_groupby_' + '_'.join(groupby) + '_op_' + operation
                     groupby_result = groupby_result.rename(columns={target: name})
                     self.trans_ls.append((groupby, groupby_result))
@@ -595,7 +589,7 @@ class GroupbyEncoder(EncoderBase):  # TODO: Not Finished Yet
 
 class TargetMeanEncoder(object):
     """
-    This is basically a duplicate.
+    This is basically a duplicate.ggVG
     """
 
     def __init__(self, smoothing_coefficients=None):
