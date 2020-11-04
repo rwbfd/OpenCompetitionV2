@@ -133,7 +133,12 @@ class ClusteringEncoder(EncoderBase):
 
     def _fit_meanshit(self, df, target, config):
         config_cp = copy.deepcopy(config)
+        bandwidth = estimate_bandwidth(df, config_cp['quantile'], config_cp['n_samples'])
+        del config['quantile']
+        del config['n_samples']
         del config_cp['method']
+
+        config_cp['bandwidth'] = bandwidth
         encoder = MeanShift(**config_cp).fit(df[target])
         name = "_".join(target) + "_meanshift"
         self.trans_ls.append(('meanshift', name, target, encoder))
