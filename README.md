@@ -8,6 +8,17 @@ will be covered.
 2. NLP related tasks.
 3. CV related tasks.
 4. AutoML: RL and Neural Architecture Search.
+## Installation
+Currently the best way to setup the environment is by using the pre-built docker image.
+
+The docker images can be pulled by 
+
+`docker pull ranwangmath/opencompetition:0.1`
+
+Please pay attention:
+1. The docker image is huge.
+2. If one wishes to use GPU, please use nvidia docker.
+3. The image is being constantly updated.  
 
 ### General Functionality
 The following functionalities have already been implemented. 
