@@ -4,6 +4,7 @@ from sklearn.metrics import accuracy_score
 import ray
 import numpy as np
 from ind_cols import get_ind_col
+from .model_fitter import LGBFitter, XGBFitter
 
 
 def permutate_selector(train_df, eval_df, y, variables=None, metric='acc', **kwargs):  # TODO Add more metric
@@ -69,3 +70,38 @@ def permutate_selector(train_df, eval_df, y, variables=None, metric='acc', **kwa
         result_dict[var] = score
     ray.shutdown()
     return result_dict
+
+
+def tree_selector(train_df, eval_df, y, opt, variables=None, type='lgb'):
+    """
+    This function select variable importance using built functions from xgboost or lightgbm
+    """
+
+    def lgb_selector():
+        pass
+
+    def xgb_selector():
+        pass
+
+    if type == 'lgb':
+        pass
+
+
+def shap_selector(train_df, eval_df, y, opt, variables=None, type='lgb'):
+    """
+    This returns the shap explainer so that one can use it for variable selection.
+    The base tree model we use will select the best iterations
+    :param train_df: training dataset
+    :param eval_df: eval dataset
+    :param y: the target variable name
+    :param opt: training argument for boosting parameters
+    :param variables: variables to make the selection. If none, will use all the selector
+    :param type; 'lgb' or 'xgb'. The tree used for computing shap values.
+
+    returns: shap explainer
+    """
+    pass
+
+
+def vif_selector(data_df, y, variables=None):
+    pass
