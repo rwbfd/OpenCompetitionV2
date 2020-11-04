@@ -15,7 +15,10 @@ import lightgbm as lgb
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from thermoencoder import ThermoEncoder
+
 cpu_count = multiprocessing.cpu_count()
+
+from sklearn.cluster import KMeans, MeanShift, estimate_bandwidth
 
 
 class EncoderBase(object):
@@ -70,6 +73,51 @@ class NANEncoder(EncoderBase):
             df_copy.loc[pd.isnull(df_copy[target]), target] = df_copy.loc[pd.isnull(df_copy[target]), target].map(
                 lambda x: value)
         return df_copy
+
+
+class ClusteringEncoder(EncoderBase):
+    """
+
+    """
+
+    def __init__(self):
+        super().__init__()
+
+    def fit(self, df, targets, configs):
+        """
+        :param df: the dataframe to train the clustering algorithm.
+        :param targets: a list of list of variables.
+        :param config: configurations for clustering algorithms
+        """
+        self.reset()
+        for target in targets:
+            for config in configs:
+                method = config['method']
+
+                if method == 'kmeans':
+                    self._fit_kmeans(df, target, config)
+                if method == 'meanshift':
+                    self._fit_meanshit(df, target, config)
+
+    def _fit_kmeans(self, df, target, config):
+        config_cp = copy.deepcopy(config)
+        del config_cp['method']
+        kmeans = KMeans(**config_cp).fit(df[target])
+        name = "_".join(target) + "_kmeans"
+        self.trans_ls.append(('kmeans', name, target, kmeans))
+
+    def _fit_meanshit(self, df, target, config):
+        config_cp = copy.deepcopy(config)
+        del config_cp['method']
+        encoder = MeanShift(**config_cp).fit(df[target])
+        name = "_".join(target) + "_meanshift"
+        self.trans_ls.append(('kmeans', name, target, encoder))
+
+    def transform(self, df):
+        df_copy = df.copy
+        for method, name, target, encoder in self.trans_ls:
+            if method in ['kmeans', 'meanshift']:
+                df_copy[name] = encoder.predict(df_copy[target])
 
 
 class CategoryEncoder(EncoderBase):
@@ -133,7 +181,7 @@ class CategoryEncoder(EncoderBase):
         sum_encoder = ce.SumEncoder()
 
         sum_encoder.fit(df[target].map(to_str))
-        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_poly' for x in
+        name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_sum' for x in
                 sum_encoder.get_feature_names()]
         self.trans_ls.append(('catboost', name, target, sum_encoder))
 
@@ -234,6 +282,8 @@ class CategoryEncoder(EncoderBase):
                 result_df[name] = encoder.transform(df[target].map(to_str))
             if method == 'ordinal':
                 result_df[name] = encoder.transform(df[target].map(to_str))
+            if method in ['catboost', 'glm', 'js', 'leave-one-out', 'sum', 'thermo']:
+                result_df[name] = encoder.transform(df[target].map(to_str), df[y])
         return result_df
 
     def _fit_thermo(self, df, y, target, parameter):
@@ -599,7 +649,7 @@ class GroupbyEncoder(EncoderBase):  # TODO: Not Finished Yet
 
 class TargetMeanEncoder(object):
     """
-    This is basically a duplicate.ggVG
+    This is basically a duplicate
     """
 
     def __init__(self, smoothing_coefficients=None):
