@@ -13,12 +13,14 @@ Currently the best way to setup the environment is by using the pre-built docker
 
 The docker images can be pulled by 
 
-`docker pull ranwangmath/opencompetition:0.1`
+`docker pull ranwangmath/opencompetition:0.3`
 
 Please pay attention:
 1. The docker image is huge.
 2. If one wishes to use GPU, please use nvidia docker.
 3. The image is being constantly updated.  
+4. If one wishes to use cuml, one must use the command `conda activate rapids-0.16`.
+Once it is done, one should use the command `conda deactivate`.
 
 ### General Functionality
 The following functionalities have already been implemented. 
