@@ -8,7 +8,9 @@ Currently, the program is still somewhat preliminary. Therefore, significant str
 2. All the examples have been used for binary classification. More general settings (multi-variate classification and regression) should be added.
 3. Some test must be carried out in terms of TPU and GPU clustering training. 
 4. Transformers and Fast Transformers
-5. 
+5. Pre-training for tabnet
+6. Differentiable architecture search
+7. Gym environment and popular RL algorithms. 
 ### Refactoring needs 
 
 ### Specific To-do list
