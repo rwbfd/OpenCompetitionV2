@@ -18,7 +18,12 @@ from thermoencoder import ThermoEncoder
 
 cpu_count = multiprocessing.cpu_count()
 
-from sklearn.cluster import KMeans, MeanShift, estimate_bandwidth
+from sklearn.cluster import KMeans, MeanShift, estimate_bandwidth, SpectralClustering, AffinityPropagation, \
+    AgglomerativeClustering, DBSCAN, OPTICS, Birch
+
+from sklearn.decomposition import LatentDirichletAllocation
+
+from sklearn.mixture import GaussianMixture
 
 
 class EncoderBase(object):
@@ -88,6 +93,8 @@ class ClusteringEncoder(EncoderBase):
         :param df: the dataframe to train the clustering algorithm.
         :param targets: a list of list of variables.
         :param config: configurations for clustering algorithms
+
+        DBSCAN, OPTICS, Birch
         """
         self.reset()
         for target in targets:
@@ -96,8 +103,26 @@ class ClusteringEncoder(EncoderBase):
 
                 if method == 'kmeans':
                     self._fit_kmeans(df, target, config)
-                if method == 'meanshift':
+                elif method == 'meanshift':
                     self._fit_meanshit(df, target, config)
+                elif method == 'affinitypropagation':
+                    self._fit_affinitypropagation(df, target, config)
+                elif method == 'spectralclustering':
+                    self._fit_spectralclustering(df, target, config)
+                elif method == 'agglomerativeclustering':
+                    self._fit_agglomerativeclustering(df, target, config)
+                elif method == 'DBSCAN':
+                    self._fit_DBSCAN(df, target, config)
+                elif method == 'OPTICS':
+                    self._fit_OPTICS(df, target, config)
+                elif method == 'birch':
+                    self._fit_birch(df, target, config)
+                elif method == 'gaussianmixture':
+                    self._fit_gaussianmixture(df, target, config)
+                elif method == 'latentdirichletallocation':
+                    self._fit_latentdirichletallocation(df, target, config)
+                else:
+                    raise NotImplementedError()
 
     def _fit_kmeans(self, df, target, config):
         config_cp = copy.deepcopy(config)
@@ -111,13 +136,74 @@ class ClusteringEncoder(EncoderBase):
         del config_cp['method']
         encoder = MeanShift(**config_cp).fit(df[target])
         name = "_".join(target) + "_meanshift"
-        self.trans_ls.append(('kmeans', name, target, encoder))
+        self.trans_ls.append(('meanshift', name, target, encoder))
+
+    def _fit_affinitypropagation(self, df, target, config):
+        config_cp = copy.deepcopy(config)
+        del config_cp['method']
+        encoder = AffinityPropagation(**config_cp).fit(df[target])
+        name = "_".join(target) + "_affinitypropagation"
+        self.trans_ls.append(('affinitypropagation', name, target, encoder))
+
+    def _fit_spectralclustering(self, df, target, config):
+        config_cp = copy.deepcopy(config)
+        del config_cp['method']
+        encoder = SpectralClustering(**config_cp).fit(df[target])
+        name = "_".join(target) + "_spectralclustering"
+        self.trans_ls.append(('spectralclustering', name, target, encoder))
+
+    def _fit_agglomerativeclustering(self, df, target, config):
+        config_cp = copy.deepcopy(config)
+        del config_cp['method']
+        encoder = AgglomerativeClustering(**config_cp).fit(df[target])
+        name = "_".join(target) + "_agglomerativeclustering"
+        self.trans_ls.append(('agglomerativeclustering', name, target, encoder))
+
+    def _fit_DBSCAN(self, df, target, config):
+        config_cp = copy.deepcopy(config)
+        del config_cp['method']
+        encoder = DBSCAN(**config_cp).fit(df[target])
+        name = "_".join(target) + "_DBSCAN"
+        self.trans_ls.append(('DBSCAN', name, target, encoder))
+
+    def _fit_OPTICS(self, df, target, config):
+        config_cp = copy.deepcopy(config)
+        del config_cp['method']
+        encoder = OPTICS(**config_cp).fit(df[target])
+        name = "_".join(target) + "_OPTICS"
+        self.trans_ls.append(('OPTICS', name, target, encoder))
+
+    def _fit_birch(self, df, target, config):
+        config_cp = copy.deepcopy(config)
+        del config_cp['method']
+        encoder = Birch(**config_cp).fit(df[target])
+        name = "_".join(target) + "_birch"
+        self.trans_ls.append(('birch', name, target, encoder))
+
+    def _fit_gaussianmixture(self, df, target, config):
+        config_cp = copy.deepcopy(config)
+        del config_cp['method']
+        encoder = GaussianMixture(**config_cp).fit(df[target])
+        name = "_".join(target) + "_gaussianmixture"
+        self.trans_ls.append(('gaussianmixture', name, target, encoder))
+
+    def _fit_latentdirichletallocation(self, df, target, config):
+        config_cp = copy.deepcopy(config)
+        del config_cp['method']
+        encoder = LatentDirichletAllocation(**config_cp).fit(df[target])
+        name = "_".join(target) + "_latentdirichletallocation"
+        self.trans_ls.append(('latentdirichletallocation', name, target, encoder))
+
 
     def transform(self, df):
         df_copy = df.copy
         for method, name, target, encoder in self.trans_ls:
-            if method in ['kmeans', 'meanshift']:
+            if method in ['kmeans', 'meanshift', 'affinitypropagation', 'spectralclustering',
+                          'agglomerativeclustering', 'DBSCAN', 'OPTICS', 'birch', 'gaussianmixture',
+                          'latentdirichletallocation']:
                 df_copy[name] = encoder.predict(df_copy[target])
+            else:
+                raise NotImplementedError()
 
 
 class CategoryEncoder(EncoderBase):
