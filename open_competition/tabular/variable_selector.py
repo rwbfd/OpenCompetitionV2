@@ -4,7 +4,10 @@ from sklearn.metrics import accuracy_score
 import ray
 import numpy as np
 from ind_cols import get_ind_col
-from .model_fitter import LGBFitter, XGBFitter
+from .model_fitter import LGBFitter, XGBFitter, CATFitter
+import copy
+import shap
+import statsmodels.api as sm
 
 
 def permutate_selector(train_df, eval_df, y, variables=None, metric='acc', **kwargs):  # TODO Add more metric
@@ -72,22 +75,38 @@ def permutate_selector(train_df, eval_df, y, variables=None, metric='acc', **kwa
     return result_dict
 
 
-def tree_selector(train_df, eval_df, y, opt, variables=None, type='lgb'):
+def tree_selector(train_df, eval_df, y, opt, metric="error", type='lgb'):
     """
     This function select variable importance using built functions from xgboost or lightgbm
+    :param train_df: training dataset,
+    :param eval_df: evaluation dataset
+    :param y: target variable
+    :param opt: training operation for tree models
+    :param metric: the metric used to select the best number of trees; currently only support 'error'
+    :param type: 'lgb' or 'xgb'
     """
 
-    def lgb_selector():
-        pass
-
-    def xgb_selector():
-        pass
-
     if type == 'lgb':
-        pass
+        trainer = LGBFitter(y, metric)
+    elif type == 'xgb':
+        trainer = XGBFitter(y, metric)
+    else:
+        raise NotImplementedError()
+    trainer.train(train_df, eval_df, opt)
+    best_round = trainer.best_round
+    opt_copy = copy.deepcopy(opt)
+    opt_copy['num_round'] = best_round
+    trainer.train(train_df, eval_df, opt_copy)
+    importance = trainer.clf.feature_importance_
+    name = train_df.drop(columns=y).columns
+
+    result_dict = dict()
+    for k, v in zip(name, importance):
+        result_dict[k] = v
+    return result_dict
 
 
-def shap_selector(train_df, eval_df, y, opt, variables=None, type='lgb'):
+def shap_selector(train_df, eval_df, y, opt, type='lgb', metric='error'):
     """
     This returns the shap explainer so that one can use it for variable selection.
     The base tree model we use will select the best iterations
@@ -95,13 +114,59 @@ def shap_selector(train_df, eval_df, y, opt, variables=None, type='lgb'):
     :param eval_df: eval dataset
     :param y: the target variable name
     :param opt: training argument for boosting parameters
-    :param variables: variables to make the selection. If none, will use all the selector
-    :param type; 'lgb' or 'xgb'. The tree used for computing shap values.
-
-    returns: shap explainer
+    :param type; 'lgb' , 'xgb' or 'catboost'. The tree used for computing shap values.
+    :param metric: metric to select the best tree; currently only support 'error'
+    :returns shap explainer
     """
-    pass
+    opt_copy = copy.deepcopy(opt)
+    if type == 'lgb':
+        trainer = LGBFitter(y, metric)
+
+    elif type == 'xgb':
+        trainer = XGBFitter(y, metric)
+    elif type == 'catboost':
+        trainer = CATFitter(y, metric)
+    else:
+        raise NotImplementedError()
+    trainer.train(train_df, eval_df, opt_copy)
+    best_round = trainer.best_round
+    opt_copy['num_round'] = best_round
+    trainer.train(train_df, eval_df, opt_copy)
+    clf = trainer.clf
+    return shap.TreeExplainer(clf)
 
 
-def vif_selector(data_df, y, variables=None):
-    pass
+def vif_selector(data_df, y):
+    """
+    Calculate the VIF to select variables.
+    :param data_df: the dataset
+    :param y: the target variable
+    """
+
+    ray.init()
+
+    ex_var = [var for var in data_df.columns if var != y]
+
+    data_df_id = ray.put(data_df)
+
+    @ray.remote()
+    def ls(data_df, target_var):
+        model = sm.OLS(data_df.drop(columns=target_var), data_df[target_var])
+        result = model.fit()
+        rs = result.rsquare
+        if rs == 1:
+            vif = np.inf
+        else:
+            vif = 1.0 / (1.0 - rs)
+
+        return (target_var, vif)
+
+    result = [ls.remote(data_df_id, target_var, ) for target_var in ex_var]
+    result_list = ray.get(result)
+
+    return_result = dict()
+
+    for k, v in result_list:
+        return_result[k] = v
+    ray.shutdown()
+    return return_result
