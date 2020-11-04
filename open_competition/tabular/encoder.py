@@ -21,6 +21,8 @@ cpu_count = multiprocessing.cpu_count()
 from sklearn.cluster import KMeans, MeanShift, estimate_bandwidth, SpectralClustering, AffinityPropagation, \
     AgglomerativeClustering, DBSCAN, OPTICS, Birch
 
+from sklearn.decomposition import LatentDirichletAllocation
+
 from sklearn.mixture import GaussianMixture
 
 
@@ -117,6 +119,8 @@ class ClusteringEncoder(EncoderBase):
                     self._fit_birch(df, target, config)
                 elif method == 'gaussianmixture':
                     self._fit_gaussianmixture(df, target, config)
+                elif method == 'latentdirichletallocation':
+                    self._fit_latentdirichletallocation(df, target, config)
                 else:
                     raise NotImplementedError()
 
@@ -183,12 +187,20 @@ class ClusteringEncoder(EncoderBase):
         name = "_".join(target) + "_gaussianmixture"
         self.trans_ls.append(('gaussianmixture', name, target, encoder))
 
+    def _fit_latentdirichletallocation(self, df, target, config):
+        config_cp = copy.deepcopy(config)
+        del config_cp['method']
+        encoder = LatentDirichletAllocation(**config_cp).fit(df[target])
+        name = "_".join(target) + "_latentdirichletallocation"
+        self.trans_ls.append(('latentdirichletallocation', name, target, encoder))
+
 
     def transform(self, df):
         df_copy = df.copy
         for method, name, target, encoder in self.trans_ls:
             if method in ['kmeans', 'meanshift', 'affinitypropagation', 'spectralclustering',
-                          'agglomerativeclustering', 'DBSCAN', 'OPTICS', 'birch', 'gaussianmixture']:
+                          'agglomerativeclustering', 'DBSCAN', 'OPTICS', 'birch', 'gaussianmixture',
+                          'latentdirichletallocation']:
                 df_copy[name] = encoder.predict(df_copy[target])
             else:
                 raise NotImplementedError()
