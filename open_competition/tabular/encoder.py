@@ -20,6 +20,7 @@ cpu_count = multiprocessing.cpu_count()
 
 from sklearn.cluster import KMeans, MeanShift, estimate_bandwidth, SpectralClustering, AffinityPropagation, \
     AgglomerativeClustering, DBSCAN, OPTICS, Birch
+
 from sklearn.mixture import GaussianMixture
 
 
@@ -178,7 +179,7 @@ class ClusteringEncoder(EncoderBase):
     def _fit_gaussianmixture(self, df, target, config):
         config_cp = copy.deepcopy(config)
         del config_cp['method']
-        encoder = Birch(**config_cp).fit(df[target])
+        encoder = GaussianMixture(**config_cp).fit(df[target])
         name = "_".join(target) + "_gaussianmixture"
         self.trans_ls.append(('gaussianmixture', name, target, encoder))
 
