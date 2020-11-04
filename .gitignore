@@ -10,3 +10,4 @@ runs
 **__pycache__
 build
 *.cpp
+/open_competition/tabular/encoder_val.py
