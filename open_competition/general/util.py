@@ -75,8 +75,8 @@ def get_continuous_discrete_rename_dict(original_name, continuous_vars, discrete
 
 def rename_continuous_discrete(csv_to_rename, csv_name_after_rename, continuous_vars_csv, discrete_vars_csv):
     df_to_rename = pd.read_csv(csv_to_rename, engine='python')
-    continuous_vars_df = pd.read_csv(continuous_vars_csv, engine='python', header=['column_names'])
-    discrete_vars_df = pd.read_csv(discrete_vars_csv, engine='python', header=['column_names'])
+    continuous_vars_df = pd.read_csv(continuous_vars_csv, engine='python', names=['column_names'])
+    discrete_vars_df = pd.read_csv(discrete_vars_csv, engine='python', names=['column_names'])
     continuous_vars_list = continuous_vars_df['column_names'].tolist()
     discrete_vars_list = discrete_vars_df['column_names'].tolist()
 
