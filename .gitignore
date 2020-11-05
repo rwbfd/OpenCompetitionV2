@@ -1,5 +1,4 @@
 .idea/
-examples/
 test/
 dist/
 open_competition.egg-info/
@@ -11,3 +10,4 @@ runs
 build
 *.cpp
 /open_competition/tabular/encoder_val.py
+demo/
