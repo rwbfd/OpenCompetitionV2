@@ -21,6 +21,12 @@ To run the docker images, use
 
 **Note that the docker image is HUGE, therefore DO NOT forget to use the --rm flag, or it will eat up the disk space!**
 
+Once inside the image, to use the library (it is not installed by default), use the following command
+
+1. `git clone https://github.com/rwbfd/OpenCompetitionV2.git` 
+2. `cd OpenCompetitionV2`
+3. `bash ./setup.sh`
+
 Please pay attention:
 1. The docker image is huge.
 2. If one wishes to use GPU, please use nvidia docker.
