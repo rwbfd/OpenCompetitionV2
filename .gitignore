@@ -11,3 +11,4 @@ build
 *.cpp
 /open_competition/tabular/encoder_val.py
 demo/
+.ipynb_checkpoints/

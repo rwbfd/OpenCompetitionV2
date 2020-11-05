@@ -11,6 +11,7 @@ from sklearn.model_selection import KFold
 from sklearn.metrics import confusion_matrix, accuracy_score, recall_score, precision_score, f1_score, roc_auc_score
 from ind_cols import get_ind_col
 
+
 def add_or_append_dict(input_dict, key, value):
     result_dict = copy.deepcopy(input_dict)
     if key in result_dict.keys():
@@ -72,13 +73,12 @@ def get_continuous_discrete_rename_dict(original_name, continuous_vars, discrete
     return result
 
 
-def rename_continuous_discrete(csv_to_rename, csv_name_after_rename, continuous_vars_csv, discrete_vars_csv,
-                               column_names='column_names'):
+def rename_continuous_discrete(csv_to_rename, csv_name_after_rename, continuous_vars_csv, discrete_vars_csv):
     df_to_rename = pd.read_csv(csv_to_rename, engine='python')
-    continuous_vars_df = pd.read_csv(continuous_vars_csv, engine='python')
-    discrete_vars_df = pd.read_csv(discrete_vars_csv, engine='python')
-    continuous_vars_list = continuous_vars_df[column_names].tolist()
-    discrete_vars_list = discrete_vars_df[column_names].tolist()
+    continuous_vars_df = pd.read_csv(continuous_vars_csv, engine='python', header=['column_names'])
+    discrete_vars_df = pd.read_csv(discrete_vars_csv, engine='python', header=['column_names'])
+    continuous_vars_list = continuous_vars_df['column_names'].tolist()
+    discrete_vars_list = discrete_vars_df['column_names'].tolist()
 
     rename_dict = get_continuous_discrete_rename_dict(df_to_rename.columns, continuous_vars_list, discrete_vars_list)
     df_to_rename = df_to_rename.rename(columns=rename_dict)
