@@ -80,6 +80,34 @@ class NANEncoder(EncoderBase):
         return df_copy
 
 
+class ScaleEncoder(EncoderBase):
+    def __init__(self):
+        super().__init__()
+
+    def fit(self, df, targets, configs):
+        """
+        :param df: the dataframe to transform
+        :param targets: a list of variables to perform the scaling
+        :param configs: the scaling methods
+        """
+        pass
+
+    def _fit_standardize(self):
+        pass
+
+    def _fit_min_max(self):
+        pass
+
+    def _fit_trunc_upper_quantile(self):
+        pass
+
+    def _fit_trunc_lower_quantile(self):
+        pass
+
+    def _fit_trunc_lowerupper_quantile(self):
+        pass
+
+
 class ClusteringEncoder(EncoderBase):
     """
 
@@ -193,7 +221,6 @@ class ClusteringEncoder(EncoderBase):
         encoder = LatentDirichletAllocation(**config_cp).fit(df[target])
         name = "_".join(target) + "_latentdirichletallocation"
         self.trans_ls.append(('latentdirichletallocation', name, target, encoder))
-
 
     def transform(self, df):
         df_copy = df.copy
