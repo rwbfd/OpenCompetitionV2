@@ -34,6 +34,7 @@ Please pay attention:
 4. If one wishes to use cuml, one must use the command `conda activate rapids-0.16`.
 Once it is done, one should use the command `conda deactivate`.
 
+**Unfortunately, the above command for activating rapids-0.16 does not yet work due to the fact that it is not possible to activate conda environemnt. Any help is welcomed.**
 ### General Functionality
 The following functionalities have already been implemented. 
 
