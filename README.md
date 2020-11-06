@@ -17,7 +17,7 @@ The docker images can be pulled by
 
 To run the docker images, use 
 
-`docker run -it --rm --gpus all --ipc=host -shm-size 10g -v /home/user/code:/workspace -p 8888:8888 ranwangmath/opencompetition:0.3`
+`docker run -it --rm --gpus all --ipc=host --shm-size 10g -v /home/user/code:/workspace -p 8888:8888 ranwangmath/opencompetition:0.3`
 
 **Note that the docker image is HUGE, therefore DO NOT forget to use the --rm flag, or it will eat up the disk space!**
 
