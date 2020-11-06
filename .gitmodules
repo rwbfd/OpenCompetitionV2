@@ -1,3 +1,12 @@
 [submodule "fast-transformers"]
 	path = fast-transformers
 	url = https://github.com/idiap/fast-transformers.git
+[submodule "google-research"]
+	path = google-research
+	url = https://github.com/google-research/google-research.git
+[submodule "transformers"]
+	path = transformers
+	url = https://github.com/huggingface/transformers.git
+[submodule "allennlp"]
+	path = allennlp
+	url = https://github.com/allenai/allennlp.git
