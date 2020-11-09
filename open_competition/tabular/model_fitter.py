@@ -27,6 +27,7 @@ import torch
 cpu_count = multiprocessing.cpu_count()
 use_gpu = torch.cuda.is_available()
 
+
 @dataclass
 class XGBOpt:
     nthread: any = hp.choice('nthread', [cpu_count])
@@ -76,6 +77,7 @@ class LGBOpt:
         return {'num_thread': 4, 'num_leaves': 12, 'metric': 'binary', 'objective': 'binary',
                 'num_round': 1000, 'learning_rate': 0.01, 'feature_fraction': 0.8, 'bagging_fraction': 0.8}
 
+
 @dataclass
 class CATOpt:
     thread_count: any = hp.choice('thread_count', [cpu_count])
@@ -115,9 +117,7 @@ class LROpt:
 
     @staticmethod
     def get_common_params():
-        return {'penalty': 'l2', 'C': 0.5, 'solver': 'lbfgs' }
-
-
+        return {'penalty': 'l2', 'C': 0.5, 'solver': 'lbfgs'}
 
 
 @dataclass
@@ -130,7 +130,6 @@ class KNNOpt:
     @staticmethod
     def get_common_params():
         return {'n_neighbors': 5, 'weights': 'distance'}
-
 
 
 @dataclass
@@ -525,11 +524,6 @@ class CATFitter(FitterBase):
                                           ntree_end=self.best_round - 1)
         test_pred /= k_fold.n_splits
         return train_pred, test_pred, acc_result
-<<<<<<< HEAD
-=======
-
-
->>>>>>> f2ef0ab1669b0d8ab5290360a7055535b7f6f6a5
 
 
 class LRFitter(FitterBase):
@@ -554,7 +548,6 @@ class LRFitter(FitterBase):
         preds = self.clf.predict(X=x_eval)
         output = self.get_loss(y_pred=preds, y=y_eval)
         return output
-
 
     def search(self, train_df, eval_df):
         self.opt_params = dict()
@@ -610,8 +603,6 @@ class LRFitter(FitterBase):
             test_pred += self.clf.predict(dtest)
         test_pred /= k_fold.n_splits
         return train_pred, test_pred, acc_result
-
-
 
 
 class KNNFitter(FitterBase):
@@ -858,4 +849,3 @@ class RFitter(FitterBase):
             test_pred += self.clf.predict_proba(dtest)[:, 1]
         test_pred /= k_fold.n_splits
         return train_pred, test_pred, acc_result
-
