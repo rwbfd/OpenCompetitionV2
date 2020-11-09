@@ -13,11 +13,11 @@ Currently the best way to setup the environment is by using the pre-built docker
 
 The docker images can be pulled by 
 
-`docker pull ranwangmath/opencompetition:1.0`
+`docker pull ranwangmath/opencompetition:0.3`
 
 To run the docker images, use 
 
-`docker run -it --rm --gpus all --ipc=host -shm-size 10g -v /home/user/code:/workspace -p 8888:8888 ranwangmath/opencompetition:1.0`
+`docker run -it --rm --gpus all --ipc=host --shm-size 10g -v /home/user/code:/workspace -p 8888:8888 ranwangmath/opencompetition:0.3`
 
 **Note that the docker image is HUGE, therefore DO NOT forget to use the --rm flag, or it will eat up the disk space!**
 
@@ -34,6 +34,7 @@ Please pay attention:
 4. If one wishes to use cuml, one must use the command `conda activate rapids-0.16`.
 Once it is done, one should use the command `conda deactivate`.
 
+**Unfortunately, the above command for activating rapids-0.16 does not yet work due to the fact that it is not possible to activate conda environemnt. Any help is welcomed.**
 ### General Functionality
 The following functionalities have already been implemented. 
 
