@@ -115,12 +115,9 @@ class LROpt:
 
     @staticmethod
     def get_common_params():
-<<<<<<< HEAD
-        return {'penalty': 'l2', 'C': 0.5, 'solver': 'lbfgs'}
-=======
         return {'penalty': 'l2', 'C': 0.5, 'solver': 'lbfgs' }
 
->>>>>>> f2ef0ab1669b0d8ab5290360a7055535b7f6f6a5
+
 
 
 @dataclass
@@ -415,10 +412,7 @@ class LGBFitter(FitterBase):
         test_pred /= k_fold.n_splits
         return train_pred, test_pred, acc_result
 
-<<<<<<< HEAD
 
-=======
->>>>>>> f2ef0ab1669b0d8ab5290360a7055535b7f6f6a5
 class CATFitter(FitterBase):
     def __init__(self, label='label', metric='error', opt: CATOpt = None, max_eval=100):
         super(CATFitter, self).__init__(label, metric, max_eval)
@@ -864,7 +858,4 @@ class RFitter(FitterBase):
             test_pred += self.clf.predict_proba(dtest)[:, 1]
         test_pred /= k_fold.n_splits
         return train_pred, test_pred, acc_result
-<<<<<<< HEAD
-=======
 
->>>>>>> f2ef0ab1669b0d8ab5290360a7055535b7f6f6a5
