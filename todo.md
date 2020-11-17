@@ -23,6 +23,8 @@ should be added.
 
 ### Additional Functionality
 - All the model only supports binary classification now. It would be nice to add options for other types of targets.
-- Entity embedding with vincinal info and not. 
-- Three data loaders for pandas dataframe splitted into three parts: original feature, entity embedding with and without vincinal information. 
-- Add a weight parameter for lamb optimizer for that it includes the normal adam. 
+- Add support to merge lamb into RAdamW.
+
+### Testing
+Among almost everything. 
+- All the optimizers utilities are not tested. 
