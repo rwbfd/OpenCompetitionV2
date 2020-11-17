@@ -28,6 +28,9 @@ from .trainer_utils import (
     set_seed,
 )
 from .training_args import TrainingArguments
+from .optimizers import SGDOpt, AdamWOpt, LookaheadOpt, Lookahead, RAdamW, RAdamWOpt
+
+from torch.optim import SGD, AdamW
 
 if is_apex_available():
     from apex import amp
@@ -249,7 +252,7 @@ class Trainer:
         return data_loader
 
     def get_optimizers(
-            self, opt: OptimzerOpt, num_training_steps: int
+            self, num_training_steps: int
     ) -> Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR]:  # TODO: Get more optimizers
         """
         Setup the optimizer and the learning rate scheduler.
@@ -259,18 +262,68 @@ class Trainer:
         if self.optimizers is not None:
             return self.optimizers
         # Prepare optimizer and schedule (linear warmup and decay)
-        no_decay = ["bias", "LayerNorm.weight"]
-        optimizer_grouped_parameters = [
-            {
-                "params": [p for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay)],
-                "weight_decay": self.args.weight_decay,
-            },
-            {
-                "params": [p for n, p in self.model.named_parameters() if any(nd in n for nd in no_decay)],
-                "weight_decay": 0.0,
-            },
-        ]
-        optimizer = AdamW(optimizer_grouped_parameters, lr=self.args.learning_rate, eps=self.args.adam_epsilon)
+        if isinstance(self.args.optimizer_opt, LookaheadOpt):
+            no_decay = ["bias", "LayerNorm.weight"]
+            optimizer_grouped_parameters = [
+                {
+                    "params": [p for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay)],
+                    "weight_decay": self.args.optimizer_opt.inner_opt.weight_decay,
+                },
+                {
+                    "params": [p for n, p in self.model.named_parameters() if any(nd in n for nd in no_decay)],
+                    "weight_decay": 0.0,
+                },
+            ]
+        else:
+            no_decay = ["bias", "LayerNorm.weight"]
+            optimizer_grouped_parameters = [
+                {
+                    "params": [p for n, p in self.model.named_parameters() if not any(nd in n for nd in no_decay)],
+                    "weight_decay": self.args.optimizer_opt.weight_decay,
+                },
+                {
+                    "params": [p for n, p in self.model.named_parameters() if any(nd in n for nd in no_decay)],
+                    "weight_decay": 0.0,
+                },
+            ]
+
+        if isinstance(self.args.optimizer_opt, SGDOpt):
+            optimizer = SGD(optimizer_grouped_parameters, lr=args.optimizer_opt.lr,
+                            momentum=args.optimizer_opt.momentum,
+                            dampening=args.optimizer_opt.dampening, nesterov=args.optimizer_opt.nesterov)
+        elif isinstance(self.args.optimizer_opt, AdamWOpt):
+            optimizer = AdamW(optimizer_grouped_parameters, lr=args.optimizer_opt.lr, betas=args.optimizer_opt.betas,
+                              eps=args.optimizer_opt.eps,
+                              weight_decay=args.optimizer_opt.weight_decay, amsgrad=args.optimizer_opt.amsgrad)
+        elif isinstance(self.args.optimizer_opt, RAdamWOpt):
+            optimizer = RAdamW(optimizer_grouped_parameters, lr=args.optimizer_opt.lr, betas=args.optimizer_opt.betas,
+                               eps=args.optimizer_opt.eps,
+                               weight_decay=args.optimizer_opt.weight_decay)
+        elif isinstance(self.args.optimizer_opt, LookaheadOpt):
+            if isinstance(self.args.optimizer_opt.inner_opt, SGDOpt):
+                optimizer_inner = SGD(optimizer_grouped_parameters, lr=args.optimizer_opt.inner.lr,
+                                      momentum=args.optimizer_opt.inner.momentum,
+                                      dampening=args.optimizer_opt.inner.dampening,
+                                      nesterov=args.optimizer_opt.inner.nesterov)
+                optimizer = LookaheadOpt(optimizer_inner, self.args.optimizer_opt.la_steps,
+                                         self.args.optimizer_opt.la_alpha, self.args.optimizer_opt.pullback_momentum)
+            elif isinstance(self.args.optimizer_opt, AdamWOpt):
+                optimizer_inner = AdamW(optimizer_grouped_parameters, lr=args.optimizer_opt.inner.lr,
+                                        betas=args.optimizer_opt.inner.betas, eps=args.optimizer_opt.inner.eps,
+                                        weight_decay=args.optimizer_opt.inner.weight_decay,
+                                        amsgrad=args.optimizer_opt.inner.amsgrad)
+                optimizer = LookaheadOpt(optimizer_inner, self.args.optimizer_opt.la_steps,
+                                         self.args.optimizer_opt.la_alpha, self.args.optimizer_opt.pullback_momentum)
+            elif isinstance(self.args.optimizer_opt, RAdamWOpt):
+                optimizer = RAdamW(optimizer_grouped_parameters, lr=args.optimizer_opt.inner.lr,
+                                   betas=args.optimizer_opt.inner.betas, eps=args.optimizer_opt.inner.eps,
+                                   weight_decay=args.optimizer_opt.inner.weight_decay)
+                optimizer = LookaheadOpt(optimizer_inner, self.args.optimizer_opt.la_steps,
+                                         self.args.optimizer_opt.la_alpha, self.args.optimizer_opt.pullback_momentum)
+            else:
+                raise NotImplementedError()
+        else:
+            raise NotImplementedError()
         scheduler = get_linear_schedule_with_warmup(
             optimizer, num_warmup_steps=self.args.warmup_steps, num_training_steps=num_training_steps
         )
@@ -401,7 +454,6 @@ class Trainer:
         self.epoch = 0
         epochs_trained = 0
         steps_trained_in_current_epoch = 0
-
 
         tr_loss = 0.0
         logging_loss = 0.0

@@ -10,14 +10,13 @@ from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple
 
 from .file_utils import cached_property, is_torch_available, is_torch_tpu_available, torch_required
-
+from .optimizers import OptimizerOptBase, LookaheadOpt, AdamWOpt, SGDOpt
 
 if is_torch_available():
     import torch
 
 if is_torch_tpu_available():
     import torch_xla.core.xla_model as xm
-
 
 logger = logging.getLogger(__name__)
 
@@ -35,7 +34,6 @@ def default_logdir() -> str:
 
 @dataclass
 class TrainingArguments:
-
     output_dir: str = field(
         metadata={"help": "The output directory where the model predictions and checkpoints will be written."}
     )
@@ -67,14 +65,14 @@ class TrainingArguments:
         default=None,
         metadata={
             "help": "Deprecated, the use of `--per_device_train_batch_size` is preferred. "
-            "Batch size per GPU/TPU core/CPU for training."
+                    "Batch size per GPU/TPU core/CPU for training."
         },
     )
     per_gpu_eval_batch_size: Optional[int] = field(
         default=None,
         metadata={
             "help": "Deprecated, the use of `--per_device_eval_batch_size` is preferred."
-            "Batch size per GPU/TPU core/CPU for evaluation."
+                    "Batch size per GPU/TPU core/CPU for evaluation."
         },
     )
 
@@ -82,10 +80,14 @@ class TrainingArguments:
         default=1,
         metadata={"help": "Number of updates steps to accumulate before performing a backward/update pass."},
     )
-
-    learning_rate: float = field(default=5e-5, metadata={"help": "The initial learning rate for Adam."})
-    weight_decay: float = field(default=0.0, metadata={"help": "Weight decay if we apply some."})
-    adam_epsilon: float = field(default=1e-8, metadata={"help": "Epsilon for Adam optimizer."})
+    optimizer_opt: OptimizerOptBase = field(
+        default=AdamWOpt(),
+        metadata={'help':
+                      """
+                      The configurations of optimizers. Must be a subclass of OptimizerOptBase.
+                      Default value is AdamWOpt()
+                      """}
+    )
     max_grad_norm: float = field(default=1.0, metadata={"help": "Max gradient norm."})
 
     num_train_epochs: float = field(default=3.0, metadata={"help": "Total number of training epochs to perform."})
