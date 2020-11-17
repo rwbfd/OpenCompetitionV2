@@ -3,8 +3,10 @@ import numpy as np
 import pandas as pd
 import logging
 from torch.utils.data import Dataset
+from .tab_data_opt import TabDataOpt
+import torch
 
-class TabDataLoader(Dataset):
+class TabDataSet(Dataset):
     """
     This is a data loader class designed for tabular data.
     The tabular data will be fed into an entity embedding layer, an entity embedding with vicinity information and a direct densely-connected layer.
@@ -58,15 +60,28 @@ class TabDataLoader(Dataset):
             map_dict = dict(zip(unique_val, index))
 
             self.data_pd.loc[:, var] = self.data_pd.loc[:, var].map(lambda x: map_dict[x])
+            self.data_pd.loc[:, var] = self.data_pd[var].astype('int64')
+
+        for var in self.tab_dataloader_opt.dis_vars_vic:
+            self.data_pd.loc[:, var] = self.data_pd[var].astype('float32')
+
 
     def __getitem__(self, item):
         line = self.data_pd.iloc[item, :]
 
         result = dict()
 
-        for var in self.all_vars:
-            result[var] = line[var]
+        if self.tab_dataloader_opt.dis_vars_entity is not None:
+            for var in self.tab_dataloader_opt.dis_vars_entity:
+                result[var] = torch.tensor(line[var], dtype=torch.int64)
+        if self.tab_dataloader_opt.dis_vars_vic is not None:
+            for var in self.tab_dataloader_opt.dis_vars_vic:
+                result[var] = torch.tensor(line[var], dtype=torch.float32)
+        if self.tab_dataloader_opt.conti_vars is not None:
+            for var in self.tab_dataloader_opt.conti_vars:
+                result[var] = torch.tensor(line[var], dtype=torch.float32)
 
+        result[self.tab_dataloader_opt.label] = torch.tensor(line[self.tab_dataloader_opt.label], dtype=torch.int64)
         return result
 
     def __len__(self):
