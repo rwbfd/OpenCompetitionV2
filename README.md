@@ -9,7 +9,7 @@ will be covered.
 3. CV related tasks.
 4. AutoML: RL and Neural Architecture Search.
 ## Installation
-Currently the best way to setup the environment is by using the pre-built docker image.
+Currently, the best way to set up the environment is by using the pre-built docker image.
 
 The docker images can be pulled by 
 
@@ -17,9 +17,9 @@ The docker images can be pulled by
 
 To run the docker images, use 
 
-`docker run -it --rm --gpus all --ipc=host --shm-size 10g -v /home/user/code:/workspace -p 8888:8888 ranwangmath/opencompetition:0.3`
+`docker run -it --rm --gpus all --ipc=host --shm-size 10g -v /home/user/code:/workspace -p 8888:8888 ranwangmath/opencompetition:1.0`
 
-**Note that the docker image is HUGE, therefore DO NOT forget to use the --rm flag, or it will eat up the disk space!**
+**Note that the docker image is HUGE. Therefore DO NOT forget to use the --rm flag, or it will eat up the disk space!**
 
 Once inside the image, to use the library (it is not installed by default), use the following command
 
@@ -29,12 +29,12 @@ Once inside the image, to use the library (it is not installed by default), use 
 
 Please pay attention:
 1. The docker image is huge.
-2. If one wishes to use GPU, please use nvidia docker.
+2. If one wishes to use GPU, please use Nvidia docker.
 3. The image is being constantly updated.  
 4. If one wishes to use cuml, one must use the command `conda activate rapids-0.16`.
 Once it is done, one should use the command `conda deactivate`.
 
-**Unfortunately, the above command for activating rapids-0.16 does not yet work due to the fact that it is not possible to activate conda environemnt. Any help is welcomed.**
+**Unfortunately, the above command for activating rapids-0.16 does not yet work due to the fact that it is not possible to activate conda environment. Any help is welcomed.**
 ### General Functionality
 The following functionalities have already been implemented. 
 
@@ -70,5 +70,5 @@ be implemented.
 
 After all these have been implemented, NLP related tasks will be implemented. 
 
-NOTE: These plans are only for provisioning. If one would like to make new requests, please post in the issues session. Better yet, we appreciate any contribution, especially in reinforcement learning algorithms, 
-CV and neural architecture search.  
+NOTE: These plans are only for provisioning. If one would like to make new requests, please post in the issues session. Better yet, we appreciate any contribution, especially in reinforcement learning algorithms, CV and neural architecture search. 
+ 

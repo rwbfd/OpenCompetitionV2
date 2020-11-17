@@ -189,7 +189,7 @@ class Trainer:
         if is_torch_tpu_available():
             # Set an xla_device flag on the model's config.
             # We'll find a more elegant and not need to do this in the future.
-            self.model.config.xla_device = True
+            self.xla_device = True
 
     def get_train_dataloader(self) -> DataLoader:
         """
@@ -249,7 +249,7 @@ class Trainer:
         return data_loader
 
     def get_optimizers(
-            self, num_training_steps: int
+            self, opt: OptimzerOpt, num_training_steps: int
     ) -> Tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR]:  # TODO: Get more optimizers
         """
         Setup the optimizer and the learning rate scheduler.
@@ -356,16 +356,19 @@ class Trainer:
             self.model.load_state_dict(torch.load(model_path + "/model.pt"))
 
         if self.args.fp16:
+            logger.info("*****  Using FP16 to train  ******")
             if not is_apex_available():
                 raise ImportError("Please install apex from https://www.github.com/nvidia/apex to use fp16 training.")
             model, optimizer = amp.initialize(model, optimizer, opt_level=self.args.fp16_opt_level)
 
         # multi-gpu training (should be after apex fp16 initialization)
         if self.args.n_gpu > 1:
+            logger.info("*****  Using %d GPU's  *****" % self.args.n_gpu)
             model = torch.nn.DataParallel(model)
 
         # Distributed training (should be after apex fp16 initialization)
         if self.args.local_rank != -1:
+            logger.info("****** Using distributed training  *****")
             model = torch.nn.parallel.DistributedDataParallel(
                 model,
                 device_ids=[self.args.local_rank],
@@ -378,6 +381,7 @@ class Trainer:
 
         # Train!
         if is_torch_tpu_available():
+            logger.info("***** Using TPU *****")
             total_train_batch_size = self.args.train_batch_size * xm.xrt_world_size()
         else:
             total_train_batch_size = (
@@ -613,7 +617,7 @@ class Trainer:
             raise ValueError("Trainer.model appears to not be a PreTrainedModel")
 
         xm.rendezvous("saving_checkpoint")
-        self.model.save_pretrained(output_dir)
+        torch.save(self.model.state_dict(), output_dir + "/" + "model.pt")
 
     def _save(self, output_dir: Optional[str] = None):
         output_dir = output_dir if output_dir is not None else self.args.output_dir

@@ -24,6 +24,8 @@ from sklearn.cluster import KMeans, MeanShift, estimate_bandwidth, SpectralClust
 from sklearn.decomposition import LatentDirichletAllocation
 
 from sklearn.mixture import GaussianMixture
+import warnings
+import logging
 
 
 class EncoderBase(object):
@@ -60,6 +62,8 @@ class LabelEncoder(EncoderBase):
 
 class NANEncoder(EncoderBase):
     def __init__(self):
+        warnings.warn(
+            "This is a simple application in order to perform the simpliest imputation. It is strongly suggest to use R's mice package instead. ")
         super().__init__()
 
     def fit(self, df, targets, method='simple_impute'):
@@ -90,27 +94,87 @@ class ScaleEncoder(EncoderBase):
         :param targets: a list of variables to perform the scaling
         :param configs: the scaling methods
         """
-        pass
+        for target in targets:
+            for method, param in configs:
+                if method == 'std':
+                    self._fit_standardize(df, method, target, param)
+                elif method == 'minmax':
+                    self._fit_min_max(df, method, target, param)
+                elif method == 'trunc_upper':
+                    self._fit_trunc_upper_quantile(df, method, target, param)
+                elif method == 'trunc_lower':
+                    self._fit_trunc_lower_quantile(df, method, target, param)
+                elif method == 'trunc_lower_upper':
+                    self._fit_trunc_lowerupper_quantile(df, method, target, param)
+                else:
+                    raise NotImplementedError()
 
-    def _fit_standardize(self):
-        pass
+    def _fit_standardize(self, method, df, target, param):
+        mean = df[target].mean()
+        std = df[target].std()
+        param_dict = {'mean': mean, 'std': std}
+        name = target + '_std'
+        self.trans_ls.append((method, target, name, param_dict))
 
-    def _fit_min_max(self):
-        pass
+    def _fit_min_max(self, df, method, target, param):
+        min_value = df[target].min()
+        max_value = df[target].max()
 
-    def _fit_trunc_upper_quantile(self):
-        pass
+        param_dict = {'min': min_value, 'max': max_value}
 
-    def _fit_trunc_lower_quantile(self):
-        pass
+        name = target + '_minmax'
+        self.trans_ls.append((method, target, name, param_dict))
 
-    def _fit_trunc_lowerupper_quantile(self):
-        pass
+    def _fit_trunc_upper_quantile(self, df, method, target, param):
+        upper_quantile = df[target].quantile(param['upper_quantile'])
+        name = target + '_upper_q'
+        self.trans_ls.append((method, target, name, upper_quantile))
+
+    def _fit_trunc_lower_quantile(self, df, method, target, param):
+        lower_quantile = df[target].quantile(param['lower_quantile'])
+        name = target + '_lower_q'
+        self.trans_ls.append((method, target, name, lower_quantile))
+
+    def _fit_trunc_lowerupper_quantile(self, df, method, target, param):
+        lower_quantile = df[target].quantile(param['lower_quantile'])
+        upper_quantile = df[target].quantile(param['upper_quantile'])
+
+        param_dict = {'lower_quantile': lower_quantile, upper_quantile: 'upper_quantile'}
+        name = target + "_lower_upper_q"
+        self.trans_ls.append((method, target, name, param_dict))
+
+    def transform(self, df):
+        """
+        Perform the transformation based on the previous results.
+        """
+
+        df_copy = df.copy(deep=True)
+        for method, target, name, param in self.trans_ls:
+            if method == 'std':
+                df_copy[name] = (df_copy[target] - param['mean']) / param['std']
+            elif method == 'minmax':
+                df_copy[name] = (df_copy[target] + param['min']) / (param['max'] - param['min'])
+            elif method == 'trunc_upper':
+                df_copy[name] = df_copy[target].apply(lambda x: x if x <= param else param)
+            elif method == 'trunc_lower':
+                df_copy[name] = df_copy[target].apply(lambda x: x if x >= param else param)
+            elif method == 'trunc_lower_upper':
+                def trunc(x):
+                    if x >= param['upper_quantile']:
+                        return param['upper_quantile']
+                    elif x <= param['lower_quantile']:
+                        return param['lower_quantile']
+                    else:
+                        return x
+
+                df_copy[name] = df_copy[target].apply(trunc)
+            else:
+                raise NotImplementedError()
+        return df_copy
 
 
 class ClusteringEncoder(EncoderBase):
     """
-
     """
 
     def __init__(self):
@@ -121,7 +185,6 @@ class ClusteringEncoder(EncoderBase):
         :param df: the dataframe to train the clustering algorithm.
         :param targets: a list of list of variables.
         :param config: configurations for clustering algorithms
-
         DBSCAN, OPTICS, Birch
         """
         self.reset()
@@ -161,7 +224,12 @@ class ClusteringEncoder(EncoderBase):
 
     def _fit_meanshit(self, df, target, config):
         config_cp = copy.deepcopy(config)
+        bandwidth = estimate_bandwidth(df, config_cp['quantile'], config_cp['n_samples'])
+        del config['quantile']
+        del config['n_samples']
         del config_cp['method']
+
+        config_cp['bandwidth'] = bandwidth
         encoder = MeanShift(**config_cp).fit(df[target])
         name = "_".join(target) + "_meanshift"
         self.trans_ls.append(('meanshift', name, target, encoder))
@@ -256,30 +324,30 @@ class CategoryEncoder(EncoderBase):
         method, parameter = config[0], config[1]
         if method == 'woe':
             self._fit_woe(df, y, target)
-        if method == 'one-hot':
+        elif method == 'one-hot':
             self._fit_one_hot(df, target)
-        if method == 'ordinal':
+        elif method == 'ordinal':
             self._fit_ordinal(df, target)
-        if method == 'hash':
+        elif method == 'hash':
             self._fit_hash(df, target)
-        if method == 'target':
+        elif method == 'target':
             self._fit_target(df, y, target, parameter)
-        if method == 'catboost':
+        elif method == 'catboost':
             self._fit_catboost(df, y, target, parameter)
-        if method == 'glm':
+        elif method == 'glm':
             self._fit_glm(df, y, target, parameter)
-        if method == 'js':
+        elif method == 'js':
             self._fit_js(df, y, target, parameter)
-        if method == 'leave_one_out':
+        elif method == 'leave_one_out':
             self._fit_leave_one_out(df, y, target, parameter)
-        if method == 'polinomial':
+        elif method == 'polinomial':
             self._fit_polynomial(df, y, target, parameter)
-        if method == 'sum':
+        elif method == 'sum':
             self._fit_sum(df, y, target, parameter)
-        if method == 'thermo':
+        elif method == 'thermo':
             self._fit_thermo(df, y, target, parameter)
-
         else:
+            logging.error("The method you input is %s, and is not supported." % method)
             raise NotImplementedError()
 
     def _fit_polynomial(self, df, y, target, parameter):
@@ -288,7 +356,7 @@ class CategoryEncoder(EncoderBase):
         poly_encoder.fit(df[target].map(to_str), df[y])
         name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_poly' for x in
                 poly_encoder.get_feature_names()]
-        self.trans_ls.append(('catboost', name, target, poly_encoder))
+        self.trans_ls.append(('polynomial', name, target, poly_encoder))
 
     def _fit_sum(self, df, y, target, parameter):
         sum_encoder = ce.SumEncoder()
@@ -296,7 +364,7 @@ class CategoryEncoder(EncoderBase):
         sum_encoder.fit(df[target].map(to_str))
         name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_sum' for x in
                 sum_encoder.get_feature_names()]
-        self.trans_ls.append(('catboost', name, target, sum_encoder))
+        self.trans_ls.append(('sum_encoder', name, target, sum_encoder))
 
     def _fit_js(self, df, y, target, parameter):
         js_encoder = ce.JamesSteinEncoder()
@@ -304,7 +372,7 @@ class CategoryEncoder(EncoderBase):
         js_encoder.fit(df[target].map(to_str), df[y])
         name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_js' for x in
                 js_encoder.get_feature_names()]
-        self.trans_ls.append(('catboost', name, target, js_encoder))
+        self.trans_ls.append(('jsencoder', name, target, js_encoder))
 
     def _fit_leave_one_out(self, df, y, target, parameter):
         loo_encoder = ce.LeaveOneOutEncoder()
@@ -380,8 +448,8 @@ class CategoryEncoder(EncoderBase):
         result_df = df.copy(deep=True)
         for method, name, target, encoder in self.trans_ls:
             if method == 'woe':
-                if y:
-                    result_df[name] = encoder.transform(df[target].map(to_str), df[y].map(to_str))
+                if y is not None:
+                    result_df[name] = encoder.transform(df[target].map(to_str), df[y])
                 else:
                     result_df[name] = encoder.transform(df[target].map(to_str))
             if method == 'one-hot':
@@ -492,6 +560,41 @@ class UnaryContinuousVarEncoder(EncoderBase):
                     self._fit_inv(target)
                 if method == 'sqrt':
                     self._fit_sqrt(target)
+                if method == 'box_cox':
+                    self._fit_box_cox(target, parameter)
+                if method == 'yeo_johnson':
+                    self._fit_yeo_johnson(target, parameter)
+
+    def _fit_box_cox(self, target, parameter):
+        name = target + str(parameter['lambda']) + '_box_cox'
+
+        def encoder(x):
+            lambda_1 = parameter['lambda']
+            if x <= 0:
+                warnings.warn('Box Cox transformation only applies to positive numbers! Returns 0!')
+                return 0
+            if lambda_1 != 0:
+                return (x ** lambda_1 - 1) / lambda_1
+            else:
+                return np.log(x)
+
+        self.trans_ls.append(('box_cox', name, target, encoder))
+
+    def _fit_yeo_johnson(self, target, parameter):
+        lambda_1 = (parameter['lambda'])
+        name = target + str(lambda_1) + '_yeo_johnson'
+
+        def encoder(x):
+            if lambda_1 != 0 and x >= 0:
+                return ((x + 1) ** lambda_1 - 1) / lambda_1
+            elif lambda_1 == 0 and x >= 0:
+                return np.log(x + 1)
+            elif lambda_1 != 2 and x <= 0:
+                return -((-x + 1) ** (2 - lambda_1) - 1) / (2 - lambda_1)
+            elif lambda_1 == 2 and x <= 0:
+                return -np.log(-x + 1)
+
+        self.trans_ls.append(('yeo_johnson', name, target, encoder))
 
     def transform(self, df):
         result = df.copy(deep=True)
@@ -766,6 +869,7 @@ class TargetMeanEncoder(object):
     """
 
     def __init__(self, smoothing_coefficients=None):
+        warnings.warn("This is deprecated!Please do not use this anymore.")
         if not smoothing_coefficients:
             self.smoothing_coefficients = [1]
         else:

@@ -1,14 +1,12 @@
 import setuptools
 
-with open("README.md", "r") as fh:
-    long_description = fh.read()
 
 setuptools.setup(
-    name="open-competition", # Replace with your own username
+    name="open-competition",
     version="0.1",
-    author="Example",
-    author_email="author@example.com",
-    description="A small example package",
-    packages=['thermoencoder',],
-    python_requires='>=3.7',
+    author="Ran Wang",
+    author_email="ran.wang.math@gmail.com",
+    description="A package for empirical data science competition.",
+    packages=setuptools.find_packages(),
+    python_requires='>=3.6',
 )

@@ -13,3 +13,4 @@ build
 demo/
 .ipynb_checkpoints/
 build/
+auto_feature/

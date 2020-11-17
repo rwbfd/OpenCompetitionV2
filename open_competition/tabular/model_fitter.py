@@ -23,6 +23,7 @@ from sklearn.metrics import recall_score
 from sklearn.metrics import roc_auc_score
 from sklearn.svm import SVC
 import torch
+import copy
 
 cpu_count = multiprocessing.cpu_count()
 use_gpu = torch.cuda.is_available()
@@ -288,6 +289,7 @@ class XGBFitter(FitterBase):
 
     def train_k_fold(self, k_fold, train_data, test_data, params=None, drop_test_y=True, use_best_eval=True):
         acc_result = list()
+        result_models = list()
         train_pred = np.empty(train_data.shape[0])
         test_pred = np.empty(test_data.shape[0])
         if drop_test_y:
@@ -298,6 +300,7 @@ class XGBFitter(FitterBase):
             train_df = train_data.loc[train_id]
             eval_df = train_data.loc[eval_id]
             self.train(train_df, eval_df, params, use_best_eval)
+            result_models.append(copy.deepcopy(self.clf))
             train_pred[eval_id] = self.clf.predict(xgb.DMatrix(eval_df.drop(columns=self.label)),
                                                    ntree_limit=self.best_round)
             if self.metric == 'auc':
@@ -309,7 +312,7 @@ class XGBFitter(FitterBase):
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
             test_pred += self.clf.predict(xgb.DMatrix(dtest), ntree_limit=self.best_round)
         test_pred /= k_fold.n_splits
-        return train_pred, test_pred, acc_result
+        return train_pred, test_pred, acc_result, result_models
 
 
 class LGBFitter(FitterBase):
@@ -396,10 +399,13 @@ class LGBFitter(FitterBase):
             dtest = test_data.drop(columns=self.label)
         else:
             dtest = test_data
+
+        models = list()
         for train_id, eval_id in k_fold.split(train_data):
             train_df = train_data.loc[train_id]
             eval_df = train_data.loc[eval_id]
             self.train(train_df, eval_df, params, use_best_eval)
+            models.append(copy.deepcopy(self.clf))
             train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label), num_iteration=self.best_round)
             if self.metric == 'auc':
                 y_pred = self.clf.predict(eval_df.drop(columns=[self.label]), num_iteration=self.best_round)
@@ -409,7 +415,7 @@ class LGBFitter(FitterBase):
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
             test_pred += self.clf.predict(dtest, num_iteration=self.best_round)
         test_pred /= k_fold.n_splits
-        return train_pred, test_pred, acc_result
+        return train_pred, test_pred, acc_result, models
 
 
 class CATFitter(FitterBase):
@@ -507,10 +513,12 @@ class CATFitter(FitterBase):
             dtest = test_data.drop(columns=self.label)
         else:
             dtest = test_data
+        models = list()
         for train_id, eval_id in k_fold.split(train_data):
             train_df = train_data.loc[train_id]
             eval_df = train_data.loc[eval_id]
             self.train(train_df, eval_df, params, use_best_eval)
+            models.append(copy.deepcopy(self.clf))
             train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label),
                                                    ntree_end=self.best_round - 1)
             if self.metric == 'auc':
@@ -593,6 +601,7 @@ class LRFitter(FitterBase):
             train_df = train_data.iloc[train_id]
             eval_df = train_data.iloc[eval_id]
             self.train(train_df, eval_df, params)
+            models.append(deepcopy(self.clf))
             train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label))
             if self.metric == 'auc':
                 y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
@@ -602,7 +611,7 @@ class LRFitter(FitterBase):
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
             test_pred += self.clf.predict(dtest)
         test_pred /= k_fold.n_splits
-        return train_pred, test_pred, acc_result
+        return train_pred, test_pred, acc_result, models
 
 
 class KNNFitter(FitterBase):
@@ -669,10 +678,12 @@ class KNNFitter(FitterBase):
             dtest = test_data.drop(columns=self.label)
         else:
             dtest = test_data
+        models = list()
         for train_id, eval_id in k_fold.split(train_data):
             train_df = train_data.iloc[train_id]
             eval_df = train_data.iloc[eval_id]
             self.train(train_df, eval_df, params)
+            models.append(copy.deepcopy(self.clf))
             train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label))
             if self.metric == 'auc':
                 y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
@@ -682,7 +693,7 @@ class KNNFitter(FitterBase):
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
             test_pred += self.clf.predict(dtest)
         test_pred /= k_fold.n_splits
-        return train_pred, test_pred, acc_result
+        return train_pred, test_pred, acc_result, models
 
 
 class SVMFitter(FitterBase):
@@ -748,6 +759,7 @@ class SVMFitter(FitterBase):
             dtest = test_data.drop(columns=self.label)
         else:
             dtest = test_data
+        models = list()
         for train_id, eval_id in k_fold.split(train_data):
             train_df = train_data.iloc[train_id, :]
             eval_df = train_data.iloc[eval_id, :]
@@ -756,6 +768,7 @@ class SVMFitter(FitterBase):
             train_df = train_data.loc[train_id]
             eval_df = train_data.loc[eval_id]
             self.train(train_df, eval_df, params)
+            models.append(deepcopy(self.clf))
             train_pred[eval_id] = self.clf.predict(eval_df.drop(columns=self.label))
             if self.metric == 'auc':
                 y_pred = self.clf.predict(eval_df.drop(columns=[self.label]))
@@ -765,7 +778,7 @@ class SVMFitter(FitterBase):
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
             test_pred += self.clf.predict_proba(dtest)[:, 1]
         test_pred /= k_fold.n_splits
-        return train_pred, test_pred, acc_result
+        return train_pred, test_pred, acc_result, models
 
 
 class RFitter(FitterBase):
@@ -831,10 +844,12 @@ class RFitter(FitterBase):
             dtest = test_data.drop(columns=self.label)
         else:
             dtest = test_data
+        models = list()
         for train_id, eval_id in k_fold.split(train_data):
             train_df = train_data.iloc[train_id, :]
             eval_df = train_data.iloc[eval_id, :]
             self.train(train_df, eval_df, params)
+            models.append(deepcopy(self.clf))
             train_pred[eval_id] = self.clf.predict_proba(eval_df.drop(columns=self.label))[:, 1]
             train_df = train_data.loc[train_id]
             eval_df = train_data.loc[eval_id]
@@ -848,4 +863,4 @@ class RFitter(FitterBase):
             acc_result.append(self.get_loss(eval_df[self.label], y_pred))
             test_pred += self.clf.predict_proba(dtest)[:, 1]
         test_pred /= k_fold.n_splits
-        return train_pred, test_pred, acc_result
+        return train_pred, test_pred, acc_result, models
