@@ -53,6 +53,16 @@ class TabDataOpt:
                       """}
     )
 
+    centroids: dict = field(
+        default=None,
+        metadata={'help':
+                      """
+                      The centroids to use in conjunction with vicino embedding.
+                      The format is a dict that has keys corresponding to the dis_var_vic and values with centroids corresponds to numpy arrays. 
+                      Default is None. 
+                      """}
+    )
+
     def __post_init__(self):
         if int(self.num_dim) <= 1:
             logging.error("""The number of dimension specified is %f. 
@@ -64,9 +74,9 @@ class TabDataOpt:
             Must specify at least one of the dis_vars_entity, dis_vars_vic or conti_vars""")
 
         if (self.dis_vars_vic is None and self.centroids is not None) or (
-                self.dis_vars_vic is not None and self.centroids is not None):
+                self.dis_vars_vic is not None and self.centroids is None):
             logging.error("""
-            If specify to use vicino embedding both is_vars_vic and centroids should be non-empty.""")
+            If specify to use vicino embedding both dis_vars_vic and centroids should be non-empty.""")
 
         if len(self.dis_vars_vic) != len(self.centroids):
             logging.error("""The number of variables for vicino entity embeddings  is %d, while the number of centoirds is %d. 

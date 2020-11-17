@@ -1,11 +1,8 @@
 # coding = 'utf-8'
-import torch
 import numpy as np
 import pandas as pd
 import logging
 from torch.utils.data import Dataset
-from .tab_data_opt import TabDataOpt
-
 
 class TabDataLoader(Dataset):
     """
@@ -25,7 +22,7 @@ class TabDataLoader(Dataset):
             self.all_vars += self.tab_dataloader_opt.dis_vars_entity
             self.use_dis_var = True
         if self.tab_dataloader_opt.dis_vars_vic is not None:
-            self.all_vars += self.tab_dataloader_opt.dis_vars_entity
+            self.all_vars += self.tab_dataloader_opt.dis_vars_vic
             self.use_vin_var = True
 
         if self.tab_dataloader_opt.conti_vars is not None:
@@ -40,30 +37,30 @@ class TabDataLoader(Dataset):
             """)
         self.shape = self.data_pd.shape[0]
 
-        def is_valid(x):
+        def is_invalid(x):
             if pd.isnull(x):
-                return False
+                return True
 
             if x is np.inf or x is -np.inf:
-                return False
+                return True
 
-            return True
+            return False
 
         for var in self.all_vars:
-            if self.data_pd[var].map(is_valid).any():
+            if self.data_pd[var].map(is_invalid).any():
                 logging.error("""
                 Variable %s contains NaN or inf values. Please impute the values first.
                 """ % var
                               )
         for var in self.tab_dataloader_opt.dis_vars_entity:
-            unique_val = self.data_pd.unique()
+            unique_val = self.data_pd[var].unique()
             index = range(len(unique_val))
             map_dict = dict(zip(unique_val, index))
 
             self.data_pd.loc[:, var] = self.data_pd.loc[:, var].map(lambda x: map_dict[x])
 
     def __getitem__(self, item):
-        line = self.data_pd.ix[item]
+        line = self.data_pd.iloc[item, :]
 
         result = dict()
 
