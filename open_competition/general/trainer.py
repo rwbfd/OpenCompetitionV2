@@ -29,7 +29,7 @@ from .trainer_utils import (
 )
 from .training_args import TrainingArguments
 from .optimizers import SGDOpt, AdamWOpt, LookaheadOpt, Lookahead, RAdamW, RAdamWOpt
-
+from .adversarial_opt import AdversarialOptBase, FGSMOpt
 from torch.optim import SGD, AdamW
 
 if is_apex_available():
@@ -288,37 +288,38 @@ class Trainer:
             ]
 
         if isinstance(self.args.optimizer_opt, SGDOpt):
-            optimizer = SGD(optimizer_grouped_parameters, lr=args.optimizer_opt.lr,
-                            momentum=args.optimizer_opt.momentum,
-                            dampening=args.optimizer_opt.dampening, nesterov=args.optimizer_opt.nesterov)
+            optimizer = SGD(optimizer_grouped_parameters, lr=self.args.optimizer_opt.lr,
+                            momentum=self.args.optimizer_opt.momentum,
+                            dampening=self.args.optimizer_opt.dampening, nesterov=self.args.optimizer_opt.nesterov)
         elif isinstance(self.args.optimizer_opt, AdamWOpt):
-            optimizer = AdamW(optimizer_grouped_parameters, lr=args.optimizer_opt.lr, betas=args.optimizer_opt.betas,
-                              eps=args.optimizer_opt.eps,
-                              weight_decay=args.optimizer_opt.weight_decay, amsgrad=args.optimizer_opt.amsgrad)
+            optimizer = AdamW(optimizer_grouped_parameters, lr=self.args.optimizer_opt.lr, betas=self.args.optimizer_opt.betas,
+                              eps=self.args.optimizer_opt.eps,
+                              weight_decay=self.args.optimizer_opt.weight_decay, amsgrad=self.args.optimizer_opt.amsgrad)
         elif isinstance(self.args.optimizer_opt, RAdamWOpt):
-            optimizer = RAdamW(optimizer_grouped_parameters, lr=args.optimizer_opt.lr, betas=args.optimizer_opt.betas,
-                               eps=args.optimizer_opt.eps,
-                               weight_decay=args.optimizer_opt.weight_decay)
+            optimizer = RAdamW(optimizer_grouped_parameters, lr=self.args.optimizer_opt.lr, betas=self.args.optimizer_opt.betas,
+                               eps=self.args.optimizer_opt.eps,
+                               weight_decay=self.args.optimizer_opt.weight_decay)
         elif isinstance(self.args.optimizer_opt, LookaheadOpt):
             if isinstance(self.args.optimizer_opt.inner_opt, SGDOpt):
-                optimizer_inner = SGD(optimizer_grouped_parameters, lr=args.optimizer_opt.inner.lr,
-                                      momentum=args.optimizer_opt.inner.momentum,
-                                      dampening=args.optimizer_opt.inner.dampening,
-                                      nesterov=args.optimizer_opt.inner.nesterov)
-                optimizer = LookaheadOpt(optimizer_inner, self.args.optimizer_opt.la_steps,
+                optimizer_inner = SGD(optimizer_grouped_parameters, lr=self.args.optimizer_opt.inner.lr,
+                                      momentum=self.args.optimizer_opt.inner.momentum,
+                                      dampening=self.args.optimizer_opt.inner.dampening,
+                                      nesterov=self.args.optimizer_opt.inner.nesterov)
+                optimizer = Lookahead(optimizer_inner, self.args.optimizer_opt.la_steps,
                                          self.args.optimizer_opt.la_alpha, self.args.optimizer_opt.pullback_momentum)
             elif isinstance(self.args.optimizer_opt, AdamWOpt):
-                optimizer_inner = AdamW(optimizer_grouped_parameters, lr=args.optimizer_opt.inner.lr,
-                                        betas=args.optimizer_opt.inner.betas, eps=args.optimizer_opt.inner.eps,
-                                        weight_decay=args.optimizer_opt.inner.weight_decay,
-                                        amsgrad=args.optimizer_opt.inner.amsgrad)
-                optimizer = LookaheadOpt(optimizer_inner, self.args.optimizer_opt.la_steps,
+                optimizer_inner = AdamW(optimizer_grouped_parameters, lr=self.args.optimizer_opt.inner.lr,
+                                        betas=self.args.optimizer_opt.inner.betas, eps=self.args.optimizer_opt.inner.eps,
+                                        weight_decay=self.args.optimizer_opt.inner.weight_decay,
+                                        amsgrad=self.args.optimizer_opt.inner.amsgrad)
+
+                optimizer = Lookahead(optimizer_inner, self.args.optimizer_opt.la_steps,
                                          self.args.optimizer_opt.la_alpha, self.args.optimizer_opt.pullback_momentum)
             elif isinstance(self.args.optimizer_opt, RAdamWOpt):
-                optimizer = RAdamW(optimizer_grouped_parameters, lr=args.optimizer_opt.inner.lr,
-                                   betas=args.optimizer_opt.inner.betas, eps=args.optimizer_opt.inner.eps,
-                                   weight_decay=args.optimizer_opt.inner.weight_decay)
-                optimizer = LookaheadOpt(optimizer_inner, self.args.optimizer_opt.la_steps,
+                optimizer_inner = RAdamW(optimizer_grouped_parameters, lr=self.args.optimizer_opt.inner.lr,
+                                   betas=self.args.optimizer_opt.inner.betas, eps=self.args.optimizer_opt.inner.eps,
+                                   weight_decay=self.args.optimizer_opt.inner.weight_decay)
+                optimizer = Lookahead(optimizer_inner, self.args.optimizer_opt.la_steps,
                                          self.args.optimizer_opt.la_alpha, self.args.optimizer_opt.pullback_momentum)
             else:
                 raise NotImplementedError()
@@ -595,6 +596,10 @@ class Trainer:
         else:
             logger.info(output)
 
+    def _get_adv_noise(self, gradient, type='fgsm'):
+        if type == 'fgsm':
+            return self.args.adv_opt.eps*torch.sign(gradient)
+
     def _training_step(
             self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]], optimizer: torch.optim.Optimizer
     ) -> float:
@@ -612,21 +617,39 @@ class Trainer:
         outputs = model(**inputs)
         loss = outputs[0]
 
+        loss = self._get_loss(loss, optimizer, outputs)
+
+        if self.args.adv_opt is not None:
+            try:
+                gradient = model.get_gradient()
+                if isinstance(self.args.adv_opt, FGSMOpt):
+                    noise = self._get_adv_noise(gradient)
+
+                inputs['noise'] = noise
+                optimizer.zero_grad()
+                outputs== model(**inputs)
+                loss = outputs(0)
+                loss = self._get_loss(loss, optimizer, outputs)
+            except Exception as e:
+                logger.error(("To use adversarial training, the model must define a get_gradient methods that returns the noise"))
+            finally:
+                pass
+
+        return loss.item()
+
+    def _get_loss(self, loss, optimizer, outputs):
         if self.args.past_index >= 0:
             self._past = outputs[self.args.past_index]
-
         if self.args.n_gpu > 1:
             loss = loss.mean()  # mean() to average on multi-gpu parallel training
         if self.args.gradient_accumulation_steps > 1:
             loss = loss / self.args.gradient_accumulation_steps
-
         if self.args.fp16:
             with amp.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
         else:
             loss.backward()
-
-        return loss.item()
+        return loss
 
     def is_local_master(self) -> bool:
         if is_torch_tpu_available():
