@@ -31,3 +31,12 @@ class FGSMOpt(AdversarialOptBase):
                       "The noise coefficient to multiply the sign of gradient."
                       "Controls the extent of noise."}
     )
+
+@dataclass
+class FGMOpt(AdversarialOptBase):
+    eps: float = field(
+        default=1e-5,
+        metadata={'help':
+                      "The noise coefficient to multiply the sign of gradient divided by its norm."
+                      "Controls the extent of noise."}
+    )

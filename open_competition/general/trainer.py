@@ -29,7 +29,7 @@ from .trainer_utils import (
 )
 from .training_args import TrainingArguments
 from .optimizers import SGDOpt, AdamWOpt, LookaheadOpt, Lookahead, RAdamW, RAdamWOpt
-from .adversarial_opt import AdversarialOptBase, FGSMOpt
+from .adversarial_opt import AdversarialOptBase, FGSMOpt, FGMOpt
 from torch.optim import SGD, AdamW
 
 if is_apex_available():
@@ -599,7 +599,10 @@ class Trainer:
     def _get_adv_noise(self, gradient, type='fgsm'):
         if type == 'fgsm':
             return self.args.adv_opt.eps*torch.sign(gradient)
-
+        elif type == 'fgm':
+            return self.args.adv_opt.ops*torch.sign(gradient)/torch.norm(gradient, p=2)
+        else:
+            logging.error("Not Implemented Yet")
     def _training_step(
             self, model: nn.Module, inputs: Dict[str, Union[torch.Tensor, Any]], optimizer: torch.optim.Optimizer
     ) -> float:
@@ -623,11 +626,15 @@ class Trainer:
             try:
                 gradient = model.get_gradient()
                 if isinstance(self.args.adv_opt, FGSMOpt):
-                    noise = self._get_adv_noise(gradient)
-
+                    noise = self._get_adv_noise(gradient, type='fgsm')
+                elif isinstance(self.args.adv_opt, FGMOpt):
+                    noise = self._get_adv_noise(gradient, type='fgm')
                 inputs['noise'] = noise
+
                 optimizer.zero_grad()
-                outputs== model(**inputs)
+                model.zero_grad()
+
+                outputs = model(**inputs)
                 loss = outputs(0)
                 loss = self._get_loss(loss, optimizer, outputs)
             except Exception as e:
