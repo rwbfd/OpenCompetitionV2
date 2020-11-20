@@ -620,70 +620,9 @@ class Trainer:
         if self.args.adv_opt is not None:
             try:
                 if isinstance(self.args.adv_opt, FGSMOpt) or isinstance(self.args.adv_opt, FGMOpt):
-                    type = 'fgsm' if isinstance(self.args.adv_opt, FGSMOpt) else 'fgm'
-                    outputs = model(**inputs)
-                    loss = outputs[0]
-                    loss = self._get_loss(loss, optimizer, outputs)
-                    gradient = model.get_gradient()
-                    noise = self._get_adv_noise(gradient, type=type)
-                    inputs['noise'] = noise
-
-                    optimizer.zero_grad()
-                    model.zero_grad()
-
-                    outputs = model(**inputs)
-                    loss = outputs(0)
-                    loss = self._get_loss(loss, optimizer, outputs)
+                    loss = self._train_fgm(inputs, model, optimizer)
                 elif isinstance(self.args.adv_opt, FreeLBOp):
-                    if isinstance(model, torch.nn.DataParallel):
-                        embeds_init = model.module.get_embed(**inputs)
-                    else:
-                        embeds_init = model.get_embed(**inputs)
-                    delta = torch.zeros_like(embeds_init)
-
-                    for astep in range(self.args.adv_opt.adv_steps):
-                        # (0) forward
-                        delta.requires_grad_()
-                        inputs['inputs_embeds'] = delta + embeds_init
-                        inputs['dp_masks'] = dp_masks
-
-                        outputs = model(**inputs)
-                        loss = outputs[0]  # model outputs are always tuple in transformers (see doc)
-                        self._get_loss(loss, optimizer, outputs)
-
-                        if astep == args.adv_steps - 1:
-                            # further updates on delta
-                            break
-
-                        # (2) get gradient on delta
-                        delta_grad = delta.grad.clone().detach()
-
-                        # (3) update and clip
-                        if self.args.adv_opt.norm_type == "l2":
-                            denorm = torch.norm(delta_grad.view(delta_grad.size(0), -1), dim=1).view(-1, 1, 1)
-                            denorm = torch.clamp(denorm, min=1e-8)
-                            delta = (delta + self.opt.adv_opt.adv_lr * delta_grad / denorm).detach()
-                            if self.arsg.adv_opt.adv_max_norm > 0:
-                                delta_norm = torch.norm(delta.view(delta.size(0), -1).float(), p=2, dim=1).detach()
-                                exceed_mask = (delta_norm > args.adv_max_norm).to(embeds_init)
-                                reweights = (args.adv_max_norm / delta_norm * exceed_mask
-                                             + (1 - exceed_mask)).view(-1, 1, 1)
-                                delta = (delta * reweights).detach()
-                        elif self.args.adv_opt.norm_type == "linf":
-                            denorm = torch.norm(delta_grad.view(delta_grad.size(0), -1), dim=1, p=float("inf")).view(-1,
-                                                                                                                     1,
-                                                                                                                     1)
-                            denorm = torch.clamp(denorm, min=1e-8)
-                            delta = (delta + args.adv_lr * delta_grad / denorm).detach()
-                            if args.adv_max_norm > 0:
-                                delta = torch.clamp(delta, -args.adv_max_norm, args.adv_max_norm).detach()
-                        else:
-                            print("Norm type {} not specified.".format(args.norm_type))
-                            exit()
-                        if isinstance(model, torch.nn.DataParallel):
-                            embeds_init = model.module.get_embed(**inputs)
-                        else:
-                            embeds_init = model.get_embed(**inputs)
+                    loss = self._train_free_lb(inputs, model, optimizer)
 
             except Exception as e:
                 raise e
@@ -696,6 +635,72 @@ class Trainer:
 
             loss = self._get_loss(loss, optimizer, outputs)
         return loss.item()
+
+    def _train_fgm(self, inputs, model, optimizer):
+        type = 'fgsm' if isinstance(self.args.adv_opt, FGSMOpt) else 'fgm'
+        outputs = model(**inputs)
+        loss = outputs[0]
+        loss = self._get_loss(loss, optimizer, outputs)
+        gradient = model.get_gradient()
+        noise = self._get_adv_noise(gradient, type=type)
+        inputs['noise'] = noise
+        optimizer.zero_grad()
+        model.zero_grad()
+        outputs = model(**inputs)
+        loss = outputs(0)
+        loss = self._get_loss(loss, optimizer, outputs)
+        return loss
+
+    def _train_free_lb(self, inputs, model, optimizer):
+        if isinstance(model, torch.nn.DataParallel):
+            embeds_init = model.module.get_embed(**inputs)
+        else:
+            embeds_init = model.get_embed(**inputs)
+        delta = torch.zeros_like(embeds_init)
+        for astep in range(self.args.adv_opt.adv_steps):
+            # (0) forward
+            delta.requires_grad_()
+            inputs['inputs_embeds'] = delta + embeds_init
+            inputs['dp_masks'] = dp_masks
+
+            outputs = model(**inputs)
+            loss = outputs[0]  # model outputs are always tuple in transformers (see doc)
+            self._get_loss(loss, optimizer, outputs)
+
+            if astep == args.adv_steps - 1:
+                # further updates on delta
+                break
+
+            # (2) get gradient on delta
+            delta_grad = delta.grad.clone().detach()
+
+            # (3) update and clip
+            if self.args.adv_opt.norm_type == "l2":
+                denorm = torch.norm(delta_grad.view(delta_grad.size(0), -1), dim=1).view(-1, 1, 1)
+                denorm = torch.clamp(denorm, min=1e-8)
+                delta = (delta + self.opt.adv_opt.adv_lr * delta_grad / denorm).detach()
+                if self.arsg.adv_opt.adv_max_norm > 0:
+                    delta_norm = torch.norm(delta.view(delta.size(0), -1).float(), p=2, dim=1).detach()
+                    exceed_mask = (delta_norm > args.adv_max_norm).to(embeds_init)
+                    reweights = (args.adv_max_norm / delta_norm * exceed_mask
+                                 + (1 - exceed_mask)).view(-1, 1, 1)
+                    delta = (delta * reweights).detach()
+            elif self.args.adv_opt.norm_type == "linf":
+                denorm = torch.norm(delta_grad.view(delta_grad.size(0), -1), dim=1, p=float("inf")).view(-1,
+                                                                                                         1,
+                                                                                                         1)
+                denorm = torch.clamp(denorm, min=1e-8)
+                delta = (delta + args.adv_lr * delta_grad / denorm).detach()
+                if args.adv_max_norm > 0:
+                    delta = torch.clamp(delta, -args.adv_max_norm, args.adv_max_norm).detach()
+            else:
+                print("Norm type {} not specified.".format(args.norm_type))
+                exit()
+            if isinstance(model, torch.nn.DataParallel):
+                embeds_init = model.module.get_embed(**inputs)
+            else:
+                embeds_init = model.get_embed(**inputs)
+        return loss
 
     def _get_loss(self, loss, optimizer, outputs):
         if self.args.past_index >= 0:
