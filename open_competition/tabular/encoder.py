@@ -25,7 +25,6 @@ from sklearn.decomposition import LatentDirichletAllocation
 
 from sklearn.mixture import GaussianMixture
 import warnings
-import logging
 
 
 class EncoderBase(object):
@@ -198,14 +197,6 @@ class ClusteringEncoder(EncoderBase):
                     self._fit_meanshit(df, target, config)
                 elif method == 'affinitypropagation':
                     self._fit_affinitypropagation(df, target, config)
-                elif method == 'spectralclustering':
-                    self._fit_spectralclustering(df, target, config)
-                elif method == 'agglomerativeclustering':
-                    self._fit_agglomerativeclustering(df, target, config)
-                elif method == 'DBSCAN':
-                    self._fit_DBSCAN(df, target, config)
-                elif method == 'OPTICS':
-                    self._fit_OPTICS(df, target, config)
                 elif method == 'birch':
                     self._fit_birch(df, target, config)
                 elif method == 'gaussianmixture':
@@ -224,9 +215,7 @@ class ClusteringEncoder(EncoderBase):
 
     def _fit_meanshit(self, df, target, config):
         config_cp = copy.deepcopy(config)
-        bandwidth = estimate_bandwidth(df, config_cp['quantile'], config_cp['n_samples'])
-        del config['quantile']
-        del config['n_samples']
+        bandwidth = estimate_bandwidth(df)
         del config_cp['method']
 
         config_cp['bandwidth'] = bandwidth
@@ -240,34 +229,6 @@ class ClusteringEncoder(EncoderBase):
         encoder = AffinityPropagation(**config_cp).fit(df[target])
         name = "_".join(target) + "_affinitypropagation"
         self.trans_ls.append(('affinitypropagation', name, target, encoder))
-
-    def _fit_spectralclustering(self, df, target, config):
-        config_cp = copy.deepcopy(config)
-        del config_cp['method']
-        encoder = SpectralClustering(**config_cp).fit(df[target])
-        name = "_".join(target) + "_spectralclustering"
-        self.trans_ls.append(('spectralclustering', name, target, encoder))
-
-    def _fit_agglomerativeclustering(self, df, target, config):
-        config_cp = copy.deepcopy(config)
-        del config_cp['method']
-        encoder = AgglomerativeClustering(**config_cp).fit(df[target])
-        name = "_".join(target) + "_agglomerativeclustering"
-        self.trans_ls.append(('agglomerativeclustering', name, target, encoder))
-
-    def _fit_DBSCAN(self, df, target, config):
-        config_cp = copy.deepcopy(config)
-        del config_cp['method']
-        encoder = DBSCAN(**config_cp).fit(df[target])
-        name = "_".join(target) + "_DBSCAN"
-        self.trans_ls.append(('DBSCAN', name, target, encoder))
-
-    def _fit_OPTICS(self, df, target, config):
-        config_cp = copy.deepcopy(config)
-        del config_cp['method']
-        encoder = OPTICS(**config_cp).fit(df[target])
-        name = "_".join(target) + "_OPTICS"
-        self.trans_ls.append(('OPTICS', name, target, encoder))
 
     def _fit_birch(self, df, target, config):
         config_cp = copy.deepcopy(config)
@@ -291,14 +252,17 @@ class ClusteringEncoder(EncoderBase):
         self.trans_ls.append(('latentdirichletallocation', name, target, encoder))
 
     def transform(self, df):
-        df_copy = df.copy
+        df_copy = df.copy(deep=True)
         for method, name, target, encoder in self.trans_ls:
-            if method in ['kmeans', 'meanshift', 'affinitypropagation', 'spectralclustering',
-                          'agglomerativeclustering', 'DBSCAN', 'OPTICS', 'birch', 'gaussianmixture',
-                          'latentdirichletallocation']:
+            if method in ['kmeans', 'meanshift', 'affinitypropagation', 'birch', 'gaussianmixture']:
                 df_copy[name] = encoder.predict(df_copy[target])
+            elif method in ['OPTICS', 'DBSCAN', 'spectralclustering', 'agglomerativeclustering']:
+                raise Exception('These methods have no predict!')
+            elif method == 'latentdirichletallocation':
+                df_copy[name] = encoder.transform(df_copy[target])
             else:
                 raise NotImplementedError()
+        return df_copy
 
 
 class CategoryEncoder(EncoderBase):
@@ -347,7 +311,6 @@ class CategoryEncoder(EncoderBase):
         elif method == 'thermo':
             self._fit_thermo(df, y, target, parameter)
         else:
-            logging.error("The method you input is %s, and is not supported." % method)
             raise NotImplementedError()
 
     def _fit_polynomial(self, df, y, target, parameter):
@@ -356,7 +319,7 @@ class CategoryEncoder(EncoderBase):
         poly_encoder.fit(df[target].map(to_str), df[y])
         name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_poly' for x in
                 poly_encoder.get_feature_names()]
-        self.trans_ls.append(('polynomial', name, target, poly_encoder))
+        self.trans_ls.append(('poly', name, target, poly_encoder))
 
     def _fit_sum(self, df, y, target, parameter):
         sum_encoder = ce.SumEncoder()
@@ -364,22 +327,22 @@ class CategoryEncoder(EncoderBase):
         sum_encoder.fit(df[target].map(to_str))
         name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_sum' for x in
                 sum_encoder.get_feature_names()]
-        self.trans_ls.append(('sum_encoder', name, target, sum_encoder))
+        self.trans_ls.append(('sum', name, target, sum_encoder))
 
     def _fit_js(self, df, y, target, parameter):
         js_encoder = ce.JamesSteinEncoder()
 
         js_encoder.fit(df[target].map(to_str), df[y])
         name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_js' for x in
-                js_encoder.get_feature_names()]
-        self.trans_ls.append(('jsencoder', name, target, js_encoder))
+                js_encoder.get_feature_names()][0]
+        self.trans_ls.append(('js', name, target, js_encoder))
 
     def _fit_leave_one_out(self, df, y, target, parameter):
         loo_encoder = ce.LeaveOneOutEncoder()
 
         loo_encoder.fit(df[target].map(to_str), df[y])
         name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_leave_one_out' for x in
-                loo_encoder.get_feature_names()]
+                loo_encoder.get_feature_names()][0]
         self.trans_ls.append(('leave_one_out', name, target, loo_encoder))
 
     def _fit_catboost(self, df, y, target, parameter):
@@ -387,7 +350,7 @@ class CategoryEncoder(EncoderBase):
 
         cat_encoder.fit(df[target].map(to_str), df[y])
         name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_catboost' for x in
-                cat_encoder.get_feature_names()]
+                cat_encoder.get_feature_names()][0]
         self.trans_ls.append(('catboost', name, target, cat_encoder))
 
     def _fit_glm(self, df, y, target, parameter):
@@ -395,7 +358,7 @@ class CategoryEncoder(EncoderBase):
 
         glm_encoder.fit(df[target].map(to_str), df[y])
         name = ['continuous_' + remove_continuous_discrete_prefix(x) + '_glm' for x in
-                glm_encoder.get_feature_names()]
+                glm_encoder.get_feature_names()][0]
         self.trans_ls.append(('glm', name, target, glm_encoder))
 
     def _fit_hash(self, df, target):
@@ -448,8 +411,8 @@ class CategoryEncoder(EncoderBase):
         result_df = df.copy(deep=True)
         for method, name, target, encoder in self.trans_ls:
             if method == 'woe':
-                if y is not None:
-                    result_df[name] = encoder.transform(df[target].map(to_str), df[y])
+                if y:
+                    result_df[name] = encoder.transform(df[target].map(to_str), df[y].map(to_str))
                 else:
                     result_df[name] = encoder.transform(df[target].map(to_str))
             if method == 'one-hot':
@@ -830,7 +793,7 @@ class AnomalyScoreEncoder(EncoderBase):
         for targets in targets_list:
             n_jobs = self.nthread
 
-            model = LocalOutlierFactor(n_jobs=n_jobs)
+            model = LocalOutlierFactor(n_jobs=n_jobs, novelty=True)
             model.fit(X=df[targets])
 
             name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
@@ -848,7 +811,7 @@ class GroupbyEncoder(EncoderBase):  # TODO: Not Finished Yet
             for groupby, operations, param in groupby_op_list:
                 for operation in operations:
                     groupby_result = self._fit_one(df, target, groupby, operation)
-                    name = target + '_groupby_' + '_'.join(groupby) + '_op_' + operation
+                    name = target + '_groupby_' + '_'.join(groupby) + '_op_' + str(operation)
                     groupby_result = groupby_result.rename(columns={target: name})
                     self.trans_ls.append((groupby, groupby_result))
 
