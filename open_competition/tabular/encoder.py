@@ -1,30 +1,26 @@
 # coding = 'utf-8'
-import pandas as pd
-import numpy as np
-import category_encoders as ce
-from ..general.util import remove_continuous_discrete_prefix, split_df
 import copy
-
 import multiprocessing
+import warnings
 
-from sklearn.neighbors import LocalOutlierFactor
-from sklearn.ensemble import IsolationForest
-import xgboost as xgb
+import category_encoders as ce
 import lightgbm as lgb
-
+import numpy as np
+import pandas as pd
+import xgboost as xgb
+from sklearn.cluster import KMeans, MeanShift, estimate_bandwidth, AffinityPropagation, \
+    Birch
+from sklearn.decomposition import LatentDirichletAllocation
 from sklearn.decomposition import PCA
+from sklearn.ensemble import IsolationForest
 from sklearn.manifold import TSNE
+from sklearn.mixture import GaussianMixture
+from sklearn.neighbors import LocalOutlierFactor
 from thermoencoder import ThermoEncoder
 
+from ..general.util import remove_continuous_discrete_prefix, split_df
+
 cpu_count = multiprocessing.cpu_count()
-
-from sklearn.cluster import KMeans, MeanShift, estimate_bandwidth, SpectralClustering, AffinityPropagation, \
-    AgglomerativeClustering, DBSCAN, OPTICS, Birch
-
-from sklearn.decomposition import LatentDirichletAllocation
-
-from sklearn.mixture import GaussianMixture
-import warnings
 
 
 class EncoderBase(object):
@@ -62,7 +58,8 @@ class LabelEncoder(EncoderBase):
 class NANEncoder(EncoderBase):
     def __init__(self):
         warnings.warn(
-            "This is a simple application in order to perform the simpliest imputation. It is strongly suggest to use R's mice package instead. ")
+            "This is a simple application in order to perform the simpliest imputation."
+            "It is strongly suggest to use R's mice package instead. ")
         super().__init__()
 
     def fit(self, df, targets, method='simple_impute'):
@@ -183,7 +180,7 @@ class ClusteringEncoder(EncoderBase):
         """
         :param df: the dataframe to train the clustering algorithm.
         :param targets: a list of list of variables.
-        :param config: configurations for clustering algorithms
+        :param configs: configurations for clustering algorithms
         DBSCAN, OPTICS, Birch
         """
         self.reset()
@@ -275,8 +272,8 @@ class CategoryEncoder(EncoderBase):
         :param df: the data frame to be fitted; can be different from the transformed ones.
         :param y: the y variable
         :param targets: the variables to be transformed
-        :param configurations: in the form of a list of (method, parameter), where method is one of ['woe', 'one-hot','ordinal','hash'],
-        and parameter is a dictionary pertained to each encoding method
+        :param configurations: in the form of a list of (method, parameter), where method is one of ['woe', 'one-hot',
+        'ordinal','hash'],and parameter is a dictionary pertained to each encoding method
         :return:
         """
         self.reset()
@@ -297,23 +294,23 @@ class CategoryEncoder(EncoderBase):
         elif method == 'target':
             self._fit_target(df, y, target, parameter)
         elif method == 'catboost':
-            self._fit_catboost(df, y, target, parameter)
+            self._fit_catboost(df, y, target)
         elif method == 'glm':
-            self._fit_glm(df, y, target, parameter)
+            self._fit_glm(df, y, target)
         elif method == 'js':
-            self._fit_js(df, y, target, parameter)
+            self._fit_js(df, y, target)
         elif method == 'leave_one_out':
-            self._fit_leave_one_out(df, y, target, parameter)
+            self._fit_leave_one_out(df, y, target)
         elif method == 'polinomial':
-            self._fit_polynomial(df, y, target, parameter)
+            self._fit_polynomial(df, y, target)
         elif method == 'sum':
-            self._fit_sum(df, y, target, parameter)
+            self._fit_sum(df, y, target)
         elif method == 'thermo':
-            self._fit_thermo(df, y, target, parameter)
+            self._fit_thermo(df, y, target)
         else:
             raise NotImplementedError()
 
-    def _fit_polynomial(self, df, y, target, parameter):
+    def _fit_polynomial(self, df, y, target):
         poly_encoder = ce.PolynomialEncoder()
 
         poly_encoder.fit(df[target].map(to_str), df[y])
@@ -321,7 +318,7 @@ class CategoryEncoder(EncoderBase):
                 poly_encoder.get_feature_names()]
         self.trans_ls.append(('poly', name, target, poly_encoder))
 
-    def _fit_sum(self, df, y, target, parameter):
+    def _fit_sum(self, df, y, target):
         sum_encoder = ce.SumEncoder()
 
         sum_encoder.fit(df[target].map(to_str))
@@ -329,7 +326,7 @@ class CategoryEncoder(EncoderBase):
                 sum_encoder.get_feature_names()]
         self.trans_ls.append(('sum', name, target, sum_encoder))
 
-    def _fit_js(self, df, y, target, parameter):
+    def _fit_js(self, df, y, target):
         js_encoder = ce.JamesSteinEncoder()
 
         js_encoder.fit(df[target].map(to_str), df[y])
@@ -337,7 +334,7 @@ class CategoryEncoder(EncoderBase):
                 js_encoder.get_feature_names()][0]
         self.trans_ls.append(('js', name, target, js_encoder))
 
-    def _fit_leave_one_out(self, df, y, target, parameter):
+    def _fit_leave_one_out(self, df, y, target):
         loo_encoder = ce.LeaveOneOutEncoder()
 
         loo_encoder.fit(df[target].map(to_str), df[y])
@@ -345,7 +342,7 @@ class CategoryEncoder(EncoderBase):
                 loo_encoder.get_feature_names()][0]
         self.trans_ls.append(('leave_one_out', name, target, loo_encoder))
 
-    def _fit_catboost(self, df, y, target, parameter):
+    def _fit_catboost(self, df, y, target):
         cat_encoder = ce.CatBoostEncoder()
 
         cat_encoder.fit(df[target].map(to_str), df[y])
@@ -353,7 +350,7 @@ class CategoryEncoder(EncoderBase):
                 cat_encoder.get_feature_names()][0]
         self.trans_ls.append(('catboost', name, target, cat_encoder))
 
-    def _fit_glm(self, df, y, target, parameter):
+    def _fit_glm(self, df, y, target):
         glm_encoder = ce.GLMMEncoder()
 
         glm_encoder.fit(df[target].map(to_str), df[y])
@@ -389,10 +386,11 @@ class CategoryEncoder(EncoderBase):
         target_copy = target_copy.map(to_str)
         one_hot_encoder.fit(target_copy)
         name = [x + "_one_hot" for x in
-                one_hot_encoder.get_feature_names()]  ## I assume that the variables start with discrete
+                one_hot_encoder.get_feature_names()]
+        # I assume that the variables start with discrete
         self.trans_ls.append(('one-hot', name, target, one_hot_encoder))
 
-    def _fit_woe(self, df, y, target):  ##
+    def _fit_woe(self, df, y, target):
         woe_encoder = ce.woe.WOEEncoder(cols=target)
         woe_encoder.fit(df[target].map(to_str), df[y].map(to_str))
         name = 'continuous_' + remove_continuous_discrete_prefix(target) + "_woe"
@@ -400,7 +398,6 @@ class CategoryEncoder(EncoderBase):
 
     def transform(self, df, y=None):
         """
-
         :param df: The data frame to be transformed.
         :param y: The name for y variable. Only used for leave-one-out transform for WOE and Target encoder.
         :return: The transformed dataset
@@ -430,7 +427,7 @@ class CategoryEncoder(EncoderBase):
                 result_df[name] = encoder.transform(df[target].map(to_str), df[y])
         return result_df
 
-    def _fit_thermo(self, df, y, target, parameter):
+    def _fit_thermo(self, df, y, target):
         encoder = ThermoEncoder()
 
         encoder.fit(df[target].map(to_str))
@@ -686,10 +683,14 @@ class BoostTreeEncoder(EncoderBase):
             if 'nthread' not in parameter.keys():
                 parameter_copy['nthread'] = self.nthread
             if 'objective' not in parameter.keys():
-                parameter_copy['objective'] = "multi:softmax"
-            num_rounds = parameter['num_rounds']
+                if len(np.unique(df[y])) == 2:
+                    parameter_copy['objective'] = "binary:logistic"
+                else:
+                    parameter_copy['objective'] = "multi:softmax"
+
+            num_rounds = parameter['num_boost_round']
             pos = parameter['pos']
-            dtrain = xgb.DMatrix(df[targets], label=df[y])
+            dtrain = xgb.DMatrix(df[list(targets)], label=df[y])
             model = xgb.train(parameter_copy, dtrain, num_rounds)
             name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
             name = "discrete_" + "_".join(name_remove)
@@ -702,10 +703,14 @@ class BoostTreeEncoder(EncoderBase):
             if 'num_threads' not in parameter.keys():
                 parameter_copy['num_threads'] = self.nthread
             if 'objective' not in parameter.keys():
-                parameter_copy['objective'] = "multiclass"
-            num_rounds = parameter['num_threads']
-            pos = parameter['pos']
-            dtrain = lgb.Dataset(df[targets], label=df[y])
+                if len(np.unique(df[y])) == 2:
+                    parameter_copy['objective'] = "binary"
+                else:
+                    parameter_copy['objective'] = "multiclass"
+            num_rounds = parameter_copy['num_threads']
+            pos = parameter_copy['pos']
+            parameter_copy.pop("pos")
+            dtrain = lgb.Dataset(df[list(targets)], label=df[y])
             model = lgb.train(parameter_copy, dtrain, num_rounds)
 
             name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
@@ -716,26 +721,26 @@ class BoostTreeEncoder(EncoderBase):
         result = df.copy(deep=True)
         trans_results = [result]
         for method, name, targets, model, pos in self.trans_ls:
-            if method == 'xgboost':
+            if method == 'xgb':
                 tree_infos: pd.DataFrame = model.trees_to_dataframe()
-            elif method == 'lightgbm':
+            elif method == 'lgb':
                 tree_infos = tree_to_dataframe_for_lightgbm(model).get()
             else:
                 raise Exception("Not Implemented Yet")
 
-            trans_results.append(self._boost_transform(result[targets], method, name, pos, tree_infos))
-
+            trans_results.append(self._boost_transform(result[list(targets)], method, name, pos, tree_infos))
         return pd.concat(trans_results, axis=1)
 
     @staticmethod
-    def _transform_byeval(df, feature_name, leaf_condition):
+    def _transform_byeval(row, leaf_condition):
         for key in leaf_condition.keys():
             if eval(leaf_condition[key]):
-                df[feature_name] = key
-        return df
+                return key
+        return np.NaN
 
     def _boost_transform(self, df, method, name, pos, tree_infos):
-        tree_ids = tree_infos["Node"].drop_duplicates().tolist().sort()
+        tree_ids = tree_infos["Node"].drop_duplicates().tolist()
+        tree_ids.sort()
         for tree_id in tree_ids:
             tree_info = tree_infos[tree_infos["Tree"] == tree_id][
                 ["Node", "Feature", "Split", "Yes", "No", "Missing"]].copy(deep=True)
@@ -745,12 +750,16 @@ class BoostTreeEncoder(EncoderBase):
             leaf_nodes = tree_info[tree_info["Feature"] == "Leaf"]["Node"].drop_duplicates().tolist()
             encoder_dict = {}
             for leaf_node in leaf_nodes:
+
                 encoder_dict[leaf_node] = get_booster_leaf_condition(leaf_node, [], tree_info)
-
-            df.fillna(None)
-
-            df.apply(self._transform_byeval,
-                     feature_name="_".join([name, method, "tree_" + tree_id, pos]), leaf_condition=encoder_dict)
+            if not encoder_dict:
+                continue
+            df.fillna(np.NaN)
+            feature_name = "_".join([name, method, "tree_" + str(tree_id), pos])
+            df.columns = [str(col) for col in list(df.columns)]
+            add_feature = pd.DataFrame(df.apply(self._transform_byeval, leaf_condition=encoder_dict, axis=1),
+                                       columns=[feature_name])
+            df = pd.concat([df, add_feature], axis=1)
 
         return df
 
@@ -916,16 +925,16 @@ def get_booster_leaf_condition(leaf_node, conditions, tree_info: pd.DataFrame):
     father_node_id = father_node_info["Node"].tolist()[0]
     split_value = father_node_info["Split"].tolist()[0]
     split_feature = father_node_info["Feature"].tolist()[0]
+
     if fathers_left:
-        add_condition = ["row['" + split_feature + "'] <= " + str(split_value)]
+        add_condition = ["row['" + str(split_feature) + "'] <= " + str(split_value)]
         if father_node_info["Yes"].tolist()[0] == father_node_info["Missing"].tolist()[0]:
-            add_condition.append("isMissing(row['" + split_feature + "'])")
+            add_condition.append("isMissing(row['" + str(split_feature) + "'])")
 
     else:
-        add_condition = ["row['" + split_feature + "']) > " + str(split_value)]
+        add_condition = ["row['" + str(split_feature) + "'] > " + str(split_value)]
         if father_node_info["No"].tolist()[0] == father_node_info["Missing"].tolist()[0]:
-            add_condition.append("row['" + split_feature + "'] == None")
-
+            add_condition.append("row['" + str(split_feature) + "'] == np.NaN")
     add_condition = "(" + " or ".join(add_condition) + ")"
     conditions.append(add_condition)
 
@@ -966,13 +975,11 @@ class tree_to_dataframe_for_lightgbm(object):
 
     def get(self):
         tree_dataframe = []
-
         for tree in self.json_model["tree_info"]:
             tree_id = tree["tree_index"]
             tree = tree["tree_structure"]
             root_nodes_count = self.get_root_nodes_count(tree, 0) + 1
-            tree_dataFrame = pd.DataFrame()
-            tree_df = self._lightGBM_trans(tree, tree_dataFrame, tree_id, root_nodes_count).sort_values(
+            tree_df = self._lightGBM_trans(tree, pd.DataFrame(), tree_id, root_nodes_count).sort_values(
                 "Node").reset_index(drop=True)
             tree_df["Tree"] = tree_id
             tree_dataframe.append(tree_df)
@@ -985,7 +992,7 @@ class tree_to_dataframe_for_lightgbm(object):
         default_left = tree.get("default_left")
 
         if tree_node_id is not None:
-            data = {"Node": tree_node_id, "Feature": self.features[tree.get("split_index")], "Split": threshold}
+            data = {"Node": tree_node_id, "Feature": self.features[tree.get("split_feature")], "Split": threshold}
             yes_id = tree.get("left_child").get("split_index")
             if yes_id is None:
                 yes_id = tree.get("left_child").get("leaf_index") + root_nodes_count
@@ -1001,11 +1008,10 @@ class tree_to_dataframe_for_lightgbm(object):
                 missing_id = yes_id
             else:
                 missing_id = no_id
-            data["Yes"], data["No"], data["Missing"] = "_".join([tree_id, yes_id]), "_".join(
-                [tree_id, no_id]), "_".join([tree_id, missing_id])
+
+            data["Yes"], data["No"], data["Missing"] = "_".join([str(yes_id)]), "_".join(
+                [str(no_id)]), "_".join([str(missing_id)])
         else:
-            # print(tree)
-            # print(tree_node_id)
             data = {"Node": root_nodes_count + tree.get("leaf_index"), "Feature": "Leaf", "Split": None, "Yes": None,
                     "No": None, "Missing": None}
 
@@ -1112,3 +1118,7 @@ class DimReducEncoder:
                 result = pd.concat([result, pd.DataFrame(encoder.embedding_, columns=new_names)], axis=1)
 
         return result
+
+
+def isMissing(v):
+    return v == np.NaN
