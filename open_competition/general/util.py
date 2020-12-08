@@ -181,3 +181,11 @@ def rm_prefix(x):
         return x[9:]
     else:
         return x
+
+
+def drop_const_var(data):
+    result = data.copy(deep=True)
+    for col in data.columns:
+        if len(data.loc[~pd.isnull(data[col]), col].unique()) <= 1:
+            result.drop(columns=col, inplace=True)
+    return result
