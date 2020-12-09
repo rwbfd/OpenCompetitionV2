@@ -1,21 +1,17 @@
 import argparse
-import gym
 import os
-import sys
 import pickle
+import sys
 import time
+
+import gym
+
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
-from utils import *
-from models.mlp_policy import Policy
-from models.mlp_critic import Value
-from models.mlp_policy_disc import DiscretePolicy
-from models.mlp_discriminator import Discriminator
+from ..utils import *
+from ..models import Policy, Value, DiscretePolicy, Discriminator
 from torch import nn
-from core.ppo import ppo_step
-from core.common import estimate_advantages
-from core.agent import Agent
-
+from ..core import ppo_step, estimate_advantages, Agent
 
 parser = argparse.ArgumentParser(description='PyTorch GAIL example')
 parser.add_argument('--env-name', default="Hopper-v2", metavar='G',
@@ -123,7 +119,7 @@ def update_params(batch, i_iter):
         e_o = discrim_net(expert_state_actions)
         optimizer_discrim.zero_grad()
         discrim_loss = discrim_criterion(g_o, ones((states.shape[0], 1), device=device)) + \
-            discrim_criterion(e_o, zeros((expert_traj.shape[0], 1), device=device))
+                       discrim_criterion(e_o, zeros((expert_traj.shape[0], 1), device=device))
         discrim_loss.backward()
         optimizer_discrim.step()
 
@@ -135,7 +131,8 @@ def update_params(batch, i_iter):
         perm = LongTensor(perm).to(device)
 
         states, actions, returns, advantages, fixed_log_probs = \
-            states[perm].clone(), actions[perm].clone(), returns[perm].clone(), advantages[perm].clone(), fixed_log_probs[perm].clone()
+            states[perm].clone(), actions[perm].clone(), returns[perm].clone(), advantages[perm].clone(), \
+            fixed_log_probs[perm].clone()
 
         for i in range(optim_iter_num):
             ind = slice(i * optim_batch_size, min((i + 1) * optim_batch_size, states.shape[0]))
@@ -159,11 +156,12 @@ def main_loop():
 
         if i_iter % args.log_interval == 0:
             print('{}\tT_sample {:.4f}\tT_update {:.4f}\texpert_R_avg {:.2f}\tR_avg {:.2f}'.format(
-                i_iter, log['sample_time'], t1-t0, log['avg_c_reward'], log['avg_reward']))
+                i_iter, log['sample_time'], t1 - t0, log['avg_c_reward'], log['avg_reward']))
 
-        if args.save_model_interval > 0 and (i_iter+1) % args.save_model_interval == 0:
+        if args.save_model_interval > 0 and (i_iter + 1) % args.save_model_interval == 0:
             to_device(torch.device('cpu'), policy_net, value_net, discrim_net)
-            pickle.dump((policy_net, value_net, discrim_net), open(os.path.join(assets_dir(), 'learned_models/{}_gail.p'.format(args.env_name)), 'wb'))
+            pickle.dump((policy_net, value_net, discrim_net),
+                        open(os.path.join(assets_dir(), 'learned_models/{}_gail.p'.format(args.env_name)), 'wb'))
             to_device(device, policy_net, value_net, discrim_net)
 
         """clean up gpu memory"""

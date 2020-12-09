@@ -1,5 +1,6 @@
 import numpy as np
 
+
 # from https://github.com/joschu/modular_rl
 # http://www.johndcook.com/blog/standard_deviation/
 
@@ -66,4 +67,3 @@ class ZFilter:
         if self.clip:
             x = np.clip(x, -self.clip, self.clip)
         return x
-

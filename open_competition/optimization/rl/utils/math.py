@@ -1,5 +1,6 @@
-import torch
 import math
+
+import torch
 
 
 def normal_entropy(std):
