@@ -1,15 +1,12 @@
 # coding = 'utf-8'
 import copy
-import pandas as pd
-import numpy as np
-import sympy
-from statsmodels.stats.outliers_influence import variance_inflation_factor
-
 from collections import OrderedDict
 
-from sklearn.model_selection import KFold
-from sklearn.metrics import confusion_matrix, accuracy_score, recall_score, precision_score, f1_score, roc_auc_score
+import numpy as np
+import pandas as pd
 from ind_cols import get_ind_col
+from sklearn.metrics import confusion_matrix, accuracy_score, recall_score, precision_score, f1_score, roc_auc_score
+from sklearn.model_selection import KFold
 
 
 def add_or_append_dict(input_dict, key, value):

@@ -3,22 +3,26 @@ import math
 import os
 import re
 import shutil
-import warnings
+import sys
 from contextlib import contextmanager
 from pathlib import Path
 from typing import Any, Callable, Dict, List, Optional, Tuple, Union
-import sys
+
 import numpy as np
 import torch
 from packaging import version
 from torch import nn
+from torch.optim import SGD, AdamW
 from torch.utils.data.dataloader import DataLoader
 from torch.utils.data.dataset import Dataset
 from torch.utils.data.distributed import DistributedSampler
 from torch.utils.data.sampler import RandomSampler, Sampler, SequentialSampler
 from tqdm.auto import tqdm, trange
-from .optimization import AdamW, get_linear_schedule_with_warmup
+
+from .adversarial_opt import FGSMOpt, FGMOpt
 from .file_utils import is_apex_available, is_torch_tpu_available
+from .optimization import AdamW, get_linear_schedule_with_warmup
+from .optimizers import SGDOpt, AdamWOpt, LookaheadOpt, Lookahead, RAdamW, RAdamWOpt
 from .trainer_utils import (
     PREFIX_CHECKPOINT_DIR,
     EvalPrediction,
@@ -28,9 +32,6 @@ from .trainer_utils import (
     set_seed,
 )
 from .training_args import TrainingArguments
-from .optimizers import SGDOpt, AdamWOpt, LookaheadOpt, Lookahead, RAdamW, RAdamWOpt
-from .adversarial_opt import AdversarialOptBase, FGSMOpt, FGMOpt, FreeLBOpt
-from torch.optim import SGD, AdamW
 
 if is_apex_available():
     from apex import amp
@@ -292,11 +293,14 @@ class Trainer:
                             momentum=self.args.optimizer_opt.momentum,
                             dampening=self.args.optimizer_opt.dampening, nesterov=self.args.optimizer_opt.nesterov)
         elif isinstance(self.args.optimizer_opt, AdamWOpt):
-            optimizer = AdamW(optimizer_grouped_parameters, lr=self.args.optimizer_opt.lr, betas=self.args.optimizer_opt.betas,
+            optimizer = AdamW(optimizer_grouped_parameters, lr=self.args.optimizer_opt.lr,
+                              betas=self.args.optimizer_opt.betas,
                               eps=self.args.optimizer_opt.eps,
-                              weight_decay=self.args.optimizer_opt.weight_decay, amsgrad=self.args.optimizer_opt.amsgrad)
+                              weight_decay=self.args.optimizer_opt.weight_decay,
+                              amsgrad=self.args.optimizer_opt.amsgrad)
         elif isinstance(self.args.optimizer_opt, RAdamWOpt):
-            optimizer = RAdamW(optimizer_grouped_parameters, lr=self.args.optimizer_opt.lr, betas=self.args.optimizer_opt.betas,
+            optimizer = RAdamW(optimizer_grouped_parameters, lr=self.args.optimizer_opt.lr,
+                               betas=self.args.optimizer_opt.betas,
                                eps=self.args.optimizer_opt.eps,
                                weight_decay=self.args.optimizer_opt.weight_decay)
         elif isinstance(self.args.optimizer_opt, LookaheadOpt):
@@ -306,21 +310,23 @@ class Trainer:
                                       dampening=self.args.optimizer_opt.inner.dampening,
                                       nesterov=self.args.optimizer_opt.inner.nesterov)
                 optimizer = Lookahead(optimizer_inner, self.args.optimizer_opt.la_steps,
-                                         self.args.optimizer_opt.la_alpha, self.args.optimizer_opt.pullback_momentum)
+                                      self.args.optimizer_opt.la_alpha, self.args.optimizer_opt.pullback_momentum)
             elif isinstance(self.args.optimizer_opt, AdamWOpt):
                 optimizer_inner = AdamW(optimizer_grouped_parameters, lr=self.args.optimizer_opt.inner.lr,
-                                        betas=self.args.optimizer_opt.inner.betas, eps=self.args.optimizer_opt.inner.eps,
+                                        betas=self.args.optimizer_opt.inner.betas,
+                                        eps=self.args.optimizer_opt.inner.eps,
                                         weight_decay=self.args.optimizer_opt.inner.weight_decay,
                                         amsgrad=self.args.optimizer_opt.inner.amsgrad)
 
                 optimizer = Lookahead(optimizer_inner, self.args.optimizer_opt.la_steps,
-                                         self.args.optimizer_opt.la_alpha, self.args.optimizer_opt.pullback_momentum)
+                                      self.args.optimizer_opt.la_alpha, self.args.optimizer_opt.pullback_momentum)
             elif isinstance(self.args.optimizer_opt, RAdamWOpt):
                 optimizer_inner = RAdamW(optimizer_grouped_parameters, lr=self.args.optimizer_opt.inner.lr,
-                                   betas=self.args.optimizer_opt.inner.betas, eps=self.args.optimizer_opt.inner.eps,
-                                   weight_decay=self.args.optimizer_opt.inner.weight_decay)
+                                         betas=self.args.optimizer_opt.inner.betas,
+                                         eps=self.args.optimizer_opt.inner.eps,
+                                         weight_decay=self.args.optimizer_opt.inner.weight_decay)
                 optimizer = Lookahead(optimizer_inner, self.args.optimizer_opt.la_steps,
-                                         self.args.optimizer_opt.la_alpha, self.args.optimizer_opt.pullback_momentum)
+                                      self.args.optimizer_opt.la_alpha, self.args.optimizer_opt.pullback_momentum)
             else:
                 raise NotImplementedError()
         else:

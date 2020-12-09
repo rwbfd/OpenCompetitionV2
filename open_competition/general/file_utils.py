@@ -25,7 +25,6 @@ import requests
 from filelock import FileLock
 from tqdm.auto import tqdm
 
-
 logger = logging.getLogger(__name__)  # pylint: disable=invalid-name
 
 try:
@@ -58,7 +57,6 @@ try:
 except (ImportError, AssertionError):
     _tf_available = False  # pylint: disable=invalid-name
 
-
 try:
     from torch.hub import _get_torch_home
 
@@ -67,7 +65,6 @@ except ImportError:
     torch_cache_home = os.path.expanduser(
         os.getenv("TORCH_HOME", os.path.join(os.getenv("XDG_CACHE_HOME", "~/.cache"), "torch"))
     )
-
 
 try:
     import torch_xla.core.xla_model as xm  # noqa: F401
@@ -79,7 +76,6 @@ try:
 except ImportError:
     _torch_tpu_available = False
 
-
 try:
     import psutil  # noqa: F401
 
@@ -88,7 +84,6 @@ try:
 except ImportError:
     _psutil_available = False
 
-
 try:
     import py3nvml  # noqa: F401
 
@@ -96,7 +91,6 @@ try:
 
 except ImportError:
     _py3nvml_available = False
-
 
 try:
     from apex import amp  # noqa: F401
@@ -107,7 +101,6 @@ except ImportError:
 
 default_cache_path = os.path.join(torch_cache_home, "transformers")
 
-
 PYTORCH_PRETRAINED_BERT_CACHE = os.getenv("PYTORCH_PRETRAINED_BERT_CACHE", default_cache_path)
 PYTORCH_TRANSFORMERS_CACHE = os.getenv("PYTORCH_TRANSFORMERS_CACHE", PYTORCH_PRETRAINED_BERT_CACHE)
 TRANSFORMERS_CACHE = os.getenv("TRANSFORMERS_CACHE", PYTORCH_TRANSFORMERS_CACHE)
@@ -117,7 +110,6 @@ TF2_WEIGHTS_NAME = "tf_model.h5"
 TF_WEIGHTS_NAME = "model.ckpt"
 CONFIG_NAME = "config.json"
 MODEL_CARD_NAME = "modelcard.json"
-
 
 MULTIPLE_CHOICE_DUMMY_INPUTS = [[[0], [1]], [[0], [1]]]
 DUMMY_INPUTS = [[7, 6, 0, 0, 1], [1, 2, 3, 0, 0], [0, 0, 0, 4, 5]]
@@ -202,7 +194,7 @@ def _prepare_output_docstrings(output_type, config_class):
     while i < len(lines) and re.search(r"^\s*(Args|Parameters):\s*$", lines[i]) is None:
         i += 1
     if i < len(lines):
-        docstrings = "\n".join(lines[(i + 1) :])
+        docstrings = "\n".join(lines[(i + 1):])
 
     # Add the return introduction
     full_output_type = f"{output_type.__module__}.{output_type.__name__}"
@@ -512,15 +504,15 @@ def filename_to_url(filename, cache_dir=None):
 
 
 def cached_path(
-    url_or_filename,
-    cache_dir=None,
-    force_download=False,
-    proxies=None,
-    resume_download=False,
-    user_agent: Union[Dict, str, None] = None,
-    extract_compressed_file=False,
-    force_extract=False,
-    local_files_only=False,
+        url_or_filename,
+        cache_dir=None,
+        force_download=False,
+        proxies=None,
+        resume_download=False,
+        user_agent: Union[Dict, str, None] = None,
+        extract_compressed_file=False,
+        force_extract=False,
+        local_files_only=False,
 ) -> Optional[str]:
     """
     Given something that might be a URL (or might be a local path),
@@ -636,14 +628,14 @@ def http_get(url, temp_file, proxies=None, resume_size=0, user_agent: Union[Dict
 
 
 def get_from_cache(
-    url,
-    cache_dir=None,
-    force_download=False,
-    proxies=None,
-    etag_timeout=10,
-    resume_download=False,
-    user_agent: Union[Dict, str, None] = None,
-    local_files_only=False,
+        url,
+        cache_dir=None,
+        force_download=False,
+        proxies=None,
+        etag_timeout=10,
+        resume_download=False,
+        user_agent: Union[Dict, str, None] = None,
+        local_files_only=False,
 ) -> Optional[str]:
     """
     Given a URL, look for the corresponding file in the local cache.

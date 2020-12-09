@@ -1,11 +1,12 @@
 # coding = 'utf-8'
 
-from collections import defaultdict
-from dataclasses import dataclass, field
-from torch.optim.optimizer import Optimizer
-import torch
 import collections
 import math
+from collections import defaultdict
+from dataclasses import dataclass, field
+
+import torch
+from torch.optim.optimizer import Optimizer
 
 
 @dataclass

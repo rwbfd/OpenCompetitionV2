@@ -1,9 +1,11 @@
 # coding = 'utf-8'
-import torch.nn as nn
-import torch
 import logging
 
+import torch
+import torch.nn as nn
+
 from ...tabular.tab_data_opt import TabDataOpt
+
 EPS = 1e-5
 
 

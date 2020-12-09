@@ -1,7 +1,7 @@
 # coding = 'utf-8'
 
-from dataclasses import dataclass, field
 import logging
+from dataclasses import dataclass, field
 
 """
 These are options for adversarial attacks based on gradient methods. 
@@ -12,7 +12,6 @@ The implemented methods include:
 2. FGM (Fast Gradient Method).
 3. FreeLB (Free Large-Batch).
 4. SMART (Smoothness-inducing Adversarial Regularization).
-
 """
 
 
@@ -25,9 +24,9 @@ class AdversarialOptBase:
 class FGSMOpt(AdversarialOptBase):
     eps: float = field(
         default=1e-5,
-        metadata={'help':
-                      "The noise coefficient to multiply the sign of gradient."
-                      "Controls the extent of noise."}
+        metadata={
+            'help': "The noise coefficient to multiply the sign of gradient."
+                    "Controls the extent of noise."}
     )
 
 

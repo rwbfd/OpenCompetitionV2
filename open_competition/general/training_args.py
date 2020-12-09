@@ -9,9 +9,10 @@ import os
 from dataclasses import dataclass, field
 from typing import Any, Dict, Optional, Tuple
 
+from .adversarial_opt import AdversarialOptBase
 from .file_utils import cached_property, is_torch_available, is_torch_tpu_available, torch_required
-from .optimizers import OptimizerOptBase, LookaheadOpt, AdamWOpt, SGDOpt
-from .adversarial_opt import AdversarialOptBase, FGSMOpt
+from .optimizers import OptimizerOptBase, AdamWOpt
+
 if is_torch_available():
     import torch
 
@@ -148,11 +149,11 @@ class TrainingArguments:
     )
 
     adv_opt: AdversarialOptBase = field(
-        default = None,
-        metadata = {'help':
-                    "The options that we use to run adversarial training based on gradient."
-                    "If None, no adversarial training is performed. "
-                    "Default is None."}
+        default=None,
+        metadata={'help':
+                      "The options that we use to run adversarial training based on gradient."
+                      "If None, no adversarial training is performed. "
+                      "Default is None."}
     )
     @property
     def train_batch_size(self) -> int:
