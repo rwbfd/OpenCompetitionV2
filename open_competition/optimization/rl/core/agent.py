@@ -1,8 +1,11 @@
-import multiprocessing
-from utils.replay_memory import Memory
-from utils.torch import *
 import math
+import multiprocessing
 import time
+
+from ..utils.replay_memory import Memory
+# from utils.replay_memory import Memory
+# from utils.torch import *
+from ..utils.torch import *
 
 
 def collect_samples(pid, queue, env, policy, custom_reward,
@@ -98,7 +101,6 @@ def merge_log(log_list):
 
 
 class Agent:
-
     def __init__(self, env, policy, device, custom_reward=None,
                  mean_action=False, render=False, running_state=None, num_threads=1):
         self.env = env
@@ -117,8 +119,8 @@ class Agent:
         queue = multiprocessing.Queue()
         workers = []
 
-        for i in range(self.num_threads-1):
-            worker_args = (i+1, queue, self.env, self.policy, self.custom_reward, self.mean_action,
+        for i in range(self.num_threads - 1):
+            worker_args = (i + 1, queue, self.env, self.policy, self.custom_reward, self.mean_action,
                            False, self.running_state, thread_batch_size)
             workers.append(multiprocessing.Process(target=collect_samples, args=worker_args))
         for worker in workers:

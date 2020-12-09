@@ -3,7 +3,6 @@ import torch
 
 def ppo_step(policy_net, value_net, optimizer_policy, optimizer_value, optim_value_iternum, states, actions,
              returns, advantages, fixed_log_probs, clip_epsilon, l2_reg):
-
     """update critic"""
     for _ in range(optim_value_iternum):
         values_pred = value_net(states)

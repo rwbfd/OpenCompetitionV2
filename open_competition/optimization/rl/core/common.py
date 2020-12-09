@@ -1,5 +1,5 @@
 import torch
-from utils import to_device
+from ..utils import to_device
 
 
 def estimate_advantages(rewards, masks, values, gamma, tau, device):

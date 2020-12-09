@@ -1,7 +1,6 @@
-import numpy as np
 import scipy.optimize
-from utils import *
-
+from ..utils import *
+import torch
 
 def conjugate_gradients(Avp_f, b, nsteps, rdotr_tol=1e-10):
     x = zeros(b.size(), device=b.device)
@@ -24,8 +23,7 @@ def conjugate_gradients(Avp_f, b, nsteps, rdotr_tol=1e-10):
 
 def line_search(model, f, x, fullstep, expected_improve_full, max_backtracks=10, accept_ratio=0.1):
     fval = f(True).item()
-
-    for stepfrac in [.5**x for x in range(max_backtracks)]:
+    for stepfrac in [.5 ** x for x in range(max_backtracks)]:
         x_new = x + stepfrac * fullstep
         set_flat_params_to(model, x_new)
         fval_new = f(True).item()
@@ -39,7 +37,6 @@ def line_search(model, f, x, fullstep, expected_improve_full, max_backtracks=10,
 
 
 def trpo_step(policy_net, value_net, states, actions, returns, advantages, max_kl, damping, l2_reg, use_fim=True):
-
     """update critic"""
 
     def get_value_loss(flat_params):
@@ -65,6 +62,7 @@ def trpo_step(policy_net, value_net, states, actions, returns, advantages, max_k
     with torch.no_grad():
         fixed_log_probs = policy_net.get_log_prob(states, actions)
     """define the loss function for TRPO"""
+
     def get_loss(volatile=False):
         with torch.set_grad_enabled(not volatile):
             log_probs = policy_net.get_log_prob(states, actions)
@@ -72,6 +70,7 @@ def trpo_step(policy_net, value_net, states, actions, returns, advantages, max_k
             return action_loss.mean()
 
     """use fisher information matrix for Hessian*vector"""
+
     def Fvp_fim(v):
         M, mu, info = policy_net.get_fim(states)
         mu = mu.view(-1)
@@ -92,6 +91,7 @@ def trpo_step(policy_net, value_net, states, actions, returns, advantages, max_k
         return JTMJv + v * damping
 
     """directly compute Hessian*vector from KL"""
+
     def Fvp_direct(v):
         kl = policy_net.get_kl(states)
         kl = kl.mean()

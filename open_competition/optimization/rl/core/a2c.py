@@ -2,7 +2,6 @@ import torch
 
 
 def a2c_step(policy_net, value_net, optimizer_policy, optimizer_value, states, actions, returns, advantages, l2_reg):
-
     """update critic"""
     values_pred = value_net(states)
     value_loss = (values_pred - returns).pow(2).mean()
