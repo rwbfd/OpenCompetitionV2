@@ -723,10 +723,14 @@ class BoostTreeEncoder(EncoderBase):
             if 'nthread' not in parameter.keys():
                 parameter_copy['nthread'] = self.nthread
             if 'objective' not in parameter.keys():
-                parameter_copy['objective'] = "multi:softmax"
-            num_rounds = parameter['num_rounds']
+                if len(np.unique(df[y])) == 2:
+                    parameter_copy['objective'] = "binary:logistic"
+                else:
+                    parameter_copy['objective'] = "multi:softmax"
+
+            num_rounds = parameter['num_boost_round']
             pos = parameter['pos']
-            dtrain = xgb.DMatrix(df[targets], label=df[y])
+            dtrain = xgb.DMatrix(df[list(targets)], label=df[y])
             model = xgb.train(parameter_copy, dtrain, num_rounds)
             name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
             name = "discrete_" + "_".join(name_remove)
@@ -739,10 +743,14 @@ class BoostTreeEncoder(EncoderBase):
             if 'num_threads' not in parameter.keys():
                 parameter_copy['num_threads'] = self.nthread
             if 'objective' not in parameter.keys():
-                parameter_copy['objective'] = "multiclass"
-            num_rounds = parameter['num_threads']
-            pos = parameter['pos']
-            dtrain = lgb.Dataset(df[targets], label=df[y])
+                if len(np.unique(df[y])) == 2:
+                    parameter_copy['objective'] = "binary"
+                else:
+                    parameter_copy['objective'] = "multiclass"
+            num_rounds = parameter_copy['num_threads']
+            pos = parameter_copy['pos']
+            parameter_copy.pop("pos")
+            dtrain = lgb.Dataset(df[list(targets)], label=df[y])
             model = lgb.train(parameter_copy, dtrain, num_rounds)
 
             name_remove = [remove_continuous_discrete_prefix(x) for x in targets]
@@ -753,26 +761,26 @@ class BoostTreeEncoder(EncoderBase):
         result = df.copy(deep=True)
         trans_results = [result]
         for method, name, targets, model, pos in self.trans_ls:
-            if method == 'xgboost':
+            if method == 'xgb':
                 tree_infos: pd.DataFrame = model.trees_to_dataframe()
-            elif method == 'lightgbm':
+            elif method == 'lgb':
                 tree_infos = tree_to_dataframe_for_lightgbm(model).get()
             else:
                 raise Exception("Not Implemented Yet")
 
-            trans_results.append(self._boost_transform(result[targets], method, name, pos, tree_infos))
-
+            trans_results.append(self._boost_transform(result[list(targets)], method, name, pos, tree_infos))
         return pd.concat(trans_results, axis=1)
 
     @staticmethod
-    def _transform_byeval(df, feature_name, leaf_condition):
+    def _transform_byeval(row, leaf_condition):
         for key in leaf_condition.keys():
             if eval(leaf_condition[key]):
-                df[feature_name] = key
-        return df
+                return key
+        return np.NaN
 
     def _boost_transform(self, df, method, name, pos, tree_infos):
-        tree_ids = tree_infos["Node"].drop_duplicates().tolist().sort()
+        tree_ids = tree_infos["Node"].drop_duplicates().tolist()
+        tree_ids.sort()
         for tree_id in tree_ids:
             tree_info = tree_infos[tree_infos["Tree"] == tree_id][
                 ["Node", "Feature", "Split", "Yes", "No", "Missing"]].copy(deep=True)
@@ -783,11 +791,14 @@ class BoostTreeEncoder(EncoderBase):
             encoder_dict = {}
             for leaf_node in leaf_nodes:
                 encoder_dict[leaf_node] = get_booster_leaf_condition(leaf_node, [], tree_info)
-
-            df.fillna(None)
-
-            df.apply(self._transform_byeval,
-                     feature_name="_".join([name, method, "tree_" + tree_id, pos]), leaf_condition=encoder_dict)
+            if not encoder_dict:
+                continue
+            df.fillna(np.NaN)
+            feature_name = "_".join([name, method, "tree_" + str(tree_id), pos])
+            df.columns = [str(col) for col in list(df.columns)]
+            add_feature = pd.DataFrame(df.apply(self._transform_byeval, leaf_condition=encoder_dict, axis=1),
+                                       columns=[feature_name])
+            df = pd.concat([df, add_feature], axis=1)
 
         return df
 
@@ -937,7 +948,6 @@ def to_str(x):
     else:
         return str(x)
 
-
 def get_booster_leaf_condition(leaf_node, conditions, tree_info: pd.DataFrame):
     start_node_info = tree_info[tree_info["Node"] == leaf_node]
     if start_node_info["Feature"].tolist()[0] == "Leaf":
@@ -953,16 +963,16 @@ def get_booster_leaf_condition(leaf_node, conditions, tree_info: pd.DataFrame):
     father_node_id = father_node_info["Node"].tolist()[0]
     split_value = father_node_info["Split"].tolist()[0]
     split_feature = father_node_info["Feature"].tolist()[0]
+
     if fathers_left:
-        add_condition = ["row['" + split_feature + "'] <= " + str(split_value)]
+        add_condition = ["row['" + str(split_feature) + "'] <= " + str(split_value)]
         if father_node_info["Yes"].tolist()[0] == father_node_info["Missing"].tolist()[0]:
-            add_condition.append("isMissing(row['" + split_feature + "'])")
+            add_condition.append("is_missing(row['" + str(split_feature) + "'])")
 
     else:
-        add_condition = ["row['" + split_feature + "']) > " + str(split_value)]
+        add_condition = ["row['" + str(split_feature) + "'] > " + str(split_value)]
         if father_node_info["No"].tolist()[0] == father_node_info["Missing"].tolist()[0]:
-            add_condition.append("row['" + split_feature + "'] == None")
-
+            add_condition.append("row['" + str(split_feature) + "'] == np.NaN")
     add_condition = "(" + " or ".join(add_condition) + ")"
     conditions.append(add_condition)
 
@@ -1003,13 +1013,11 @@ class tree_to_dataframe_for_lightgbm(object):
 
     def get(self):
         tree_dataframe = []
-
         for tree in self.json_model["tree_info"]:
             tree_id = tree["tree_index"]
             tree = tree["tree_structure"]
             root_nodes_count = self.get_root_nodes_count(tree, 0) + 1
-            tree_dataFrame = pd.DataFrame()
-            tree_df = self._lightGBM_trans(tree, tree_dataFrame, tree_id, root_nodes_count).sort_values(
+            tree_df = self._lightGBM_trans(tree, pd.DataFrame(), tree_id, root_nodes_count).sort_values(
                 "Node").reset_index(drop=True)
             tree_df["Tree"] = tree_id
             tree_dataframe.append(tree_df)
@@ -1022,7 +1030,7 @@ class tree_to_dataframe_for_lightgbm(object):
         default_left = tree.get("default_left")
 
         if tree_node_id is not None:
-            data = {"Node": tree_node_id, "Feature": self.features[tree.get("split_index")], "Split": threshold}
+            data = {"Node": tree_node_id, "Feature": self.features[tree.get("split_feature")], "Split": threshold}
             yes_id = tree.get("left_child").get("split_index")
             if yes_id is None:
                 yes_id = tree.get("left_child").get("leaf_index") + root_nodes_count
@@ -1038,11 +1046,10 @@ class tree_to_dataframe_for_lightgbm(object):
                 missing_id = yes_id
             else:
                 missing_id = no_id
-            data["Yes"], data["No"], data["Missing"] = "_".join([tree_id, yes_id]), "_".join(
-                [tree_id, no_id]), "_".join([tree_id, missing_id])
+
+            data["Yes"], data["No"], data["Missing"] = "_".join([str(yes_id)]), "_".join(
+                [str(no_id)]), "_".join([str(missing_id)])
         else:
-            # print(tree)
-            # print(tree_node_id)
             data = {"Node": root_nodes_count + tree.get("leaf_index"), "Feature": "Leaf", "Split": None, "Yes": None,
                     "No": None, "Missing": None}
 
@@ -1149,3 +1156,7 @@ class DimReducEncoder:
                 result = pd.concat([result, pd.DataFrame(encoder.embedding_, columns=new_names)], axis=1)
 
         return result
+
+
+def is_missing(v):
+    return v == np.NaN
