@@ -1,5 +1,5 @@
 import setuptools
-from distutils.core import Extension
+from distutils.core import Extension, setup
 from Cython.Build import cythonize
 import numpy
 
@@ -11,6 +11,11 @@ module = Extension('cython/ind_cols',
                    include_dirs=[numpy.get_include()],
                    extra_compile_args=compile_flags)
 
+setup(
+    name='cython_test',
+    ext_modules=cythonize(module)
+)
+
 
 setuptools.setup(
     name="open-competition",
@@ -18,7 +23,6 @@ setuptools.setup(
     author="Ran Wang",
     author_email="ran.wang.math@gmail.com",
     description="A package for empirical data science competition.",
-    ext_modules=cythonize("cython/ind_cols.pyx"),
     packages=setuptools.find_packages(),
     python_requires='>=3.6',
 )
