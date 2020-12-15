@@ -1,5 +1,7 @@
 import setuptools
+import os
 
+os.system('python cython/setup.py install')
 
 setuptools.setup(
     name="open-competition",
