@@ -11,7 +11,7 @@ with open('requirements.txt', 'r') as f:
         if not lines:
             break
             pass
-        requirements.append(lines[:-3])
+        requirements.append(lines.split('\n')[0])
 
 
 compile_flags = ['-std=c++11']
