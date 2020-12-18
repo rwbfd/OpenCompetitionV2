@@ -186,3 +186,7 @@ def drop_const_var(data):
         if len(data.loc[~pd.isnull(data[col]), col].unique()) <= 1:
             result.drop(columns=col, inplace=True)
     return result
+
+
+def get_level_list(x):
+    return [len(set(x.loc[:, col].astype(str).unique())) for col in range(x.shape[1])]
