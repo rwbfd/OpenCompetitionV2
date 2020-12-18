@@ -517,7 +517,7 @@ class DiscreteEncoder(EncoderBase):
                 raise Exception("The columns to be transformed are not in the dataframe.")
 
         for target, name, intervals in self.trans_ls:
-            result[name] = result[target].map(lambda x: get_interval(x, intervals))
+            result[name] = encode_label(result[target].map(lambda x: get_interval(x, intervals)))
         return result
 
     def _get_uniform_intervals(self, df, target, nbins):
@@ -873,59 +873,67 @@ class GroupbyEncoder(EncoderBase):  # TODO: Not Finished Yet
         result = df.groupby(groupby_vars, as_index=False).agg({target: operation})
         return result
 
+# Deprecated
+# class TargetMeanEncoder(object):
+#     """
+#     This is basically a duplicate
+#     """
+#
+#     def __init__(self, smoothing_coefficients=None):
+#         warnings.warn("This is deprecated!Please do not use this anymore.")
+#         if not smoothing_coefficients:
+#             self.smoothing_coefficients = [1]
+#         else:
+#             self.smoothing_coefficients = smoothing_coefficients
+#
+#     def fit_and_transform_train(self, df_train, ys, target_vars, n_splits=5):
+#         splitted_df = split_df(df_train, n_splits=n_splits, shuffle=True)
+#         result = list()
+#         for train_df, test_df in splitted_df:
+#             for y in ys:
+#                 for target_var in target_vars:
+#                     for smoothing_coefficient in self.smoothing_coefficients:
+#                         test_df = self._fit_one(train_df, test_df, y, target_var, smoothing_coefficient)
+#             result.append(test_df)
+#         return pd.concat(result)
+#
+#     def _fit_one(self, train_df, test_df, y, target_var, smoothing_coefficient):
+#         global_average = train_df[y].mean()
+#         local_average = train_df.groupby(target_var)[y].mean().to_frame().reset_index()
+#         name = "target_mean_" + y + "_" + target_var + "_lambda_" + str(smoothing_coefficient)
+#         local_average = local_average.rename(columns={y: name})
+#         test_df = test_df.merge(local_average, on=target_var, how='left')
+#         test_df[name] = test_df[name].map(
+#             lambda x: global_average if pd.isnull(x) else smoothing_coefficient * x + (
+#                     1 - smoothing_coefficient) * global_average)
+#         return test_df
 
-class TargetMeanEncoder(object):
-    """
-    This is basically a duplicate
-    """
 
-    def __init__(self, smoothing_coefficients=None):
-        warnings.warn("This is deprecated!Please do not use this anymore.")
-        if not smoothing_coefficients:
-            self.smoothing_coefficients = [1]
-        else:
-            self.smoothing_coefficients = smoothing_coefficients
-
-    def fit_and_transform_train(self, df_train, ys, target_vars, n_splits=5):
-        splitted_df = split_df(df_train, n_splits=n_splits, shuffle=True)
-        result = list()
-        for train_df, test_df in splitted_df:
-            for y in ys:
-                for target_var in target_vars:
-                    for smoothing_coefficient in self.smoothing_coefficients:
-                        test_df = self._fit_one(train_df, test_df, y, target_var, smoothing_coefficient)
-            result.append(test_df)
-        return pd.concat(result)
-
-    def _fit_one(self, train_df, test_df, y, target_var, smoothing_coefficient):
-        global_average = train_df[y].mean()
-        local_average = train_df.groupby(target_var)[y].mean().to_frame().reset_index()
-        name = "target_mean_" + y + "_" + target_var + "_lambda_" + str(smoothing_coefficient)
-        local_average = local_average.rename(columns={y: name})
-        test_df = test_df.merge(local_average, on=target_var, how='left')
-        test_df[name] = test_df[name].map(
-            lambda x: global_average if pd.isnull(x) else smoothing_coefficient * x + (
-                    1 - smoothing_coefficient) * global_average)
-        return test_df
-
-
-def get_interval(x, sorted_intervals):  ### Needs to be rewritten to remove found and duplicated code
+def get_interval(x, sorted_intervals):
+    if pd.isnull(x):
+        return -1
+    if x == np.inf:
+        return -2
+    if x == -np.inf:
+        return -3
     interval = 0
     found = False
-
-    if pd.isnull(x):
-        return np.nan
-    if x == np.inf:
-        return "i_inf"
-    if x == -np.inf:
-        return "i_neg_inf"
-    if x < sorted_intervals[0] or x > sorted_intervals[-1]:
-        return np.nan
+    sorted_intervals.append(np.inf)
+    if x < sorted_intervals[0] or x >= sorted_intervals[len(sorted_intervals)-1]:
+        return -4
     while not found and interval < len(sorted_intervals) - 1:
-        if sorted_intervals[interval] <= x <= sorted_intervals[interval + 1]:
-            return "i_" + str(interval)
+        if sorted_intervals[interval] <= x < sorted_intervals[interval + 1]:
+            return interval
         else:
             interval += 1
+
+
+def encode_label(x):
+    x_copy = x.copy(deep=True)
+    unique = sorted(list(set([str(item) for item in x_copy.astype(str).unique()])))
+    kv = {unique[i]: i for i in range(len(unique))}
+    x_copy = x_copy.map(lambda x: kv[str(x)])
+    return x_copy
 
 
 def get_uniform_interval(minimum, maximum, nbins):
