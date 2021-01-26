@@ -5,3 +5,13 @@ hyperopt
 torch
 category_encoders
 thermoencoder
+hyperopt
+scikit-learn
+category_encoders
+pandas
+numpy
+shape
+statsmodels
+tqdm
+packaging
+cython
